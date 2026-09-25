@@ -171,9 +171,9 @@ for advice if @main hits a problem it can't solve. Focus by track:
 - 1B BCI engine: done, tested by @main (47 tests, full-loop sim integration, margin sweep)
 - 1C phone page: done, tested by @main (19/19 e2e checks + reconnect)
 - 1D dashboard: done, tested by @main (Space/Esc STOP incl. inside the sim iframe, keyboard override, sim gaze)
-- 1E 3D virtual sim: FPV fix landed (b96ab7a, opus2): hub `in_fps` 18-20 in Phase 2 runs; @main's re-test pending
+- 1E 3D virtual sim: done, re-tested by @main (FPV 19-20 fps into the hub, 21 fps on the phone; frames upright, colours right)
 - 1F robot model: done, tested by @main in Chrome (32 draws, 15,648 tris, wheel signs, roller axes)
-- 2 integration: done in simulation (opus3): scenarios 1-14, fixes, `e2e/`, [runbook.md](runbook.md). Next: the user's headset + iPhone test
+- 2 integration: done in simulation (opus3), accepted by @main (57 tests, integration 19/20 with the known look-away noise, frozen-hub re-run): scenarios 1-14, fixes, `e2e/`, [runbook.md](runbook.md). Next: the user's headset + iPhone test
 - 3A RPi robot: later, needs the robot
 
 ## Later, beyond Phase 3
