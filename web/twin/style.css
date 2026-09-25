@@ -1,0 +1,51 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1d2127;
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: #e8ecf1; }
+#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+
+#hud { position: fixed; top: 10px; left: 10px; min-width: 230px; padding: 8px 10px;
+  background: rgba(16, 19, 24, 0.78); border-radius: 8px; pointer-events: none;
+  font-variant-numeric: tabular-nums; }
+#hud .row { margin: 2px 0; white-space: nowrap; }
+#hud .k { color: #8b95a3; margin-right: 2px; }
+#hud .links span:not(.k) { margin-right: 8px; }
+#hud.paused { outline: 2px solid #e0463a; }
+.small { font-size: 11px; }
+.dim { color: #8b95a3; }
+.ok { color: #4bd98a; }
+.warn { color: #ffb020; }
+.bad { color: #ff6a5c; }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 4px; font-weight: 700; letter-spacing: 0.04em; }
+.badge.armed { background: #1f8f4e; color: #fff; }
+.badge.disarmed { background: #b3322a; color: #fff; }
+.badge.stale { background: #4a525c; color: #dde; }
+
+.bars { margin: 5px 0; }
+.bar-row { display: flex; align-items: center; gap: 6px; height: 16px; }
+.bar-lbl { width: 14px; text-align: center; color: #8b95a3; }
+.bar { flex: 1; height: 8px; background: #2c323b; border-radius: 4px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; width: 0; background: #6b7a8c; transition: width 90ms linear; }
+.bar-val { width: 34px; text-align: right; color: #aab4c0; }
+.bar-row.win .bar-fill { background: #ffb020; }
+.bar-row.win .bar-lbl, .bar-row.win .bar-val { color: #ffb020; }
+
+#pip { position: fixed; right: 10px; bottom: 10px; width: 240px; background: #000;
+  border: 1px solid #3a414b; border-radius: 6px; overflow: hidden; }
+#pip canvas { display: block; width: 100%; height: auto; }
+.pip-title { position: absolute; top: 0; left: 0; right: 0; padding: 2px 6px; font-size: 11px;
+  background: rgba(0, 0, 0, 0.55); color: #cfd6de; }
+
+#bannerbox { position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; align-items: center; }
+.banner:empty { display: none; }
+.banner { padding: 5px 12px; border-radius: 6px; background: rgba(16, 19, 24, 0.85); font-weight: 600; }
+.banner.bad { background: #b3322a; color: #fff; }
+.banner.warn { background: #8a5a00; color: #fff; }
+button { font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid #56606c;
+  background: #2c323b; color: #e8ecf1; cursor: pointer; }
+
+/* Dashboard iframe: smaller and tighter, still readable. */
+body.embed #hud { top: 6px; left: 6px; min-width: 190px; padding: 5px 7px; font-size: 12px; }
+body.embed #pip { width: 170px; right: 6px; bottom: 6px; }
+body.embed #bannerbox { top: auto; bottom: 6px; left: 6px; transform: none; font-size: 12px; }

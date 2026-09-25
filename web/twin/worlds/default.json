@@ -1,0 +1,15 @@
+{
+  "name": "default",
+  "arena": {"size": [6.0, 4.0], "wall_h": 0.3, "wall_t": 0.1},
+  "spawn": {"x": -2.5, "y": 0.0, "heading": 0.0},
+  "robot": {"radius": 0.15, "max_speed_mps": 0.5,
+            "camera": {"height_m": 0.25, "pitch_deg": -10, "hfov_deg": 70, "w": 640, "h": 480}},
+  "walls": [
+    {"x": -1.2, "y": 0.7,  "w": 0.1, "d": 2.6, "h": 0.4, "yaw_deg": 0, "color": "#4f7cc4"},
+    {"x":  0.4, "y": -0.7, "w": 0.1, "d": 2.6, "h": 0.4, "yaw_deg": 0, "color": "#c4744f"},
+    {"x":  1.7, "y": 0.9,  "w": 0.4, "d": 0.4, "h": 0.3, "yaw_deg": 0, "color": "#8a5cc4"},
+    {"x":  1.9, "y": -1.1, "w": 0.3, "d": 0.3, "h": 0.25, "yaw_deg": 30, "color": "#c4b04f"},
+    {"x": -2.2, "y": -1.5, "w": 0.3, "d": 0.3, "h": 0.25, "yaw_deg": 15, "color": "#4fc48a"}
+  ],
+  "goal": {"x": 2.5, "y": 0.0, "r": 0.3}
+}
