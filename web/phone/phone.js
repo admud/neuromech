@@ -146,7 +146,7 @@ function frame(ts) {
 
 function reportStats(s, ts) {
   lastSummary = s;
-  phone.send({ type: "frame_stats", ...s });
+  phone.send({ type: "frame_stats", ...s, rtt_ms: rttMs });
   renderStatus();
   if (!SHOW_HINT || hintDismissed) return;
   if (s.fps < 100) {

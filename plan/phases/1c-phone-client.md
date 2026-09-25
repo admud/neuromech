@@ -102,12 +102,67 @@ The video may be the real robot camera or the 3D twin's virtual FPV camera
    that.
 
 ## Acceptance
-- [ ] Flicker is time-based and each target runs at its configured frequency (verify: log L(t) for a target and check the period; change freqs live via `config`)
-- [ ] Desktop Chrome at 60 Hz and at a high-refresh monitor if available: p95 frame interval within ~1.2x the refresh interval **while video streams at 20 fps**
-- [ ] No bars clipped by safe areas; corners empty; portrait handled
-- [ ] STOP tap and HOLD TO ARM long-press send the right messages
-- [ ] Works in `?demo=1` and against `python -m hub --stub`
-- [ ] Handoff notes filled in (including what you measured), committed, @main tagged
+- [x] Flicker is time-based and each target runs at its configured frequency (verify: log L(t) for a target and check the period; change freqs live via `config`)
+- [x] Desktop Chrome at 60 Hz and at a high-refresh monitor if available: p95 frame interval within ~1.2x the refresh interval **while video streams at 20 fps** (tested at 120 Hz only: this laptop's panel is 120 Hz)
+- [x] No bars clipped by safe areas; corners empty; portrait handled
+- [x] STOP tap and HOLD TO ARM long-press send the right messages
+- [x] Works in `?demo=1` and against `python -m hub --stub`
+- [x] Handoff notes filled in (including what you measured), committed, @main tagged
 
 ## Handoff notes
-_(fill in when done)_
+
+**What exists** (`web/phone/`):
+- `flicker.js`: `Flicker` draws the 4 bars every rAF with WebGL scissored
+  clears (Canvas 2D fallback with a precomputed style table). The grey level is
+  `round(255*0.5*(1+sin(2*pi*f*t)))`, where `t` is the rAF timestamp in s.
+  Nothing is allocated per frame. `FrameStats` keeps rAF intervals in a typed
+  array and summarises them once a second.
+- `video.js`: `VideoView` runs at most one `createImageBitmap` decode at a
+  time, with a single pending slot (newest frame wins), and closes each bitmap
+  after drawing it. It draws at native size and CSS scales it (letterboxed).
+  Decoding runs outside the flicker rAF.
+- `net.js`: reconnecting WS (every 1 s). `demo.js`: fake hub + a 20 fps JPEG
+  test pattern that goes through the real decode path.
+- `phone.js`:
+  - Layout: bars on the safe-area edges, empty corner squares of size bar+gap,
+    video in the middle.
+  - Overlays: winner outline (drawn in the gap, never over a bar), direction
+    arrow (blue when the source is `override`), ARMED/DISARMED, disarm
+    reason, status line, DISCONNECTED banner.
+  - Buttons: STOP (fires on pointerdown) in the bottom-right corner; HOLD TO
+    ARM (1 s, SVG progress ring) in the bottom-left corner.
+  - Messages: `hello`, `ping` every 2 s, `frame_stats` every 1 s. Shows the
+    <100 fps hint.
+- Extra safety: when the page is hidden (app switch or lock) it sends
+  `arm {"armed": false}`.
+- Extra optional field: `frame_stats.rtt_ms` (the phone's ping RTT). The hub
+  ignores it for now. For the dashboard to show phone RTT, `hub/server.py`
+  (sol) should copy it into `state.phone.rtt_ms`.
+
+**Run:** `http://<ip>:8765/phone/`, or `/phone/?demo=1` with no hub. Options:
+`?bar=0.18`, `?gap=0.04`, `?hint=1` (the fps hint otherwise shows only on
+touch devices), `?trace=1` (per-frame `t` and grey levels in
+`window.__trace`). `window.__phone` exposes internals for tests.
+
+**Measured** (Chrome driven over CDP; laptop panel is 120 Hz):
+- The trace matches the formula exactly (0 grey-level error, 4 targets,
+  ~700 frames). A DFT of the trace peaks at 11.00/14.00/17.00/20.00 Hz.
+- Live `set_config` from `/ws/dashboard` to 8.5/12.5/15/7: the phone
+  switched, and the DFT reads 8.50/12.50/15.00/7.00.
+- WebGL readback at the bar centres matches the expected levels, so the
+  scissor Y-flip is right.
+- Headed Chrome at 120 Hz, against `python -m hub --stub` +
+  `hub.sim.robot_sim --video test` (20 fps video): 120 fps, p95 8.4 ms
+  (1.0x the refresh interval), 0 dropped frames, 3 runs. 60 Hz not tested.
+- Arm against the stub: a 0.4 s hold doesn't arm, 1.4 s arms, and STOP
+  disarms with `disarm_reason: user`.
+- Reconnect: when the hub is killed, DISCONNECTED shows and the flicker keeps
+  running. It reconnects by itself when the hub restarts.
+- Safe areas: with injected iPhone insets (62/62/21 px), every bar stays
+  inside the safe area and no two touch. Portrait and 874x402 at dpr 3
+  checked by screenshot.
+
+**Not verified, for Phase 2:** a real iPhone in Safari: the 120 Hz flag,
+real `env()` inset values, Add to Home Screen, and whether iOS gestures ever
+swallow the long-press. `requestFullscreen` does nothing on iPhone, as
+expected.
