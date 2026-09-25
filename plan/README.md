@@ -10,6 +10,7 @@ only.
 - [protocol.md](protocol.md): **the contract** between tracks (routes,
   messages, Python interfaces, world file). Read it before writing code.
 - [phases/](phases/): one brief per agent
+- [runbook.md](runbook.md): demo-day procedure for the headset + iPhone test
 
 ## Phases
 
@@ -170,9 +171,9 @@ for advice if @main hits a problem it can't solve. Focus by track:
 - 1B BCI engine: done, tested by @main (47 tests, full-loop sim integration, margin sweep)
 - 1C phone page: done, tested by @main (19/19 e2e checks + reconnect)
 - 1D dashboard: done, tested by @main (Space/Esc STOP incl. inside the sim iframe, keyboard override, sim gaze)
-- 1E 3D virtual sim: fix pending (opus2): FPV feed only 4-5 fps; everything else tested OK
+- 1E 3D virtual sim: FPV fix landed (b96ab7a, opus2): hub `in_fps` 18-20 in Phase 2 runs; @main's re-test pending
 - 1F robot model: done, tested by @main in Chrome (32 draws, 15,648 tris, wheel signs, roller axes)
-- 2 integration: in progress (opus3); web/twin/ stays with opus2 until the FPV fix lands
+- 2 integration: done in simulation (opus3): scenarios 1-14, fixes, `e2e/`, [runbook.md](runbook.md). Next: the user's headset + iPhone test
 - 3A RPi robot: later, needs the robot
 
 ## Later, beyond Phase 3

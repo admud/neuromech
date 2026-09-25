@@ -71,11 +71,54 @@ real-hardware test (headset + iPhone). You now own **every file**; keep
    before testing.
 
 ## Acceptance
-- [ ] Scenarios 1–14 pass (or each exception is written up with a reason)
-- [ ] Measurements recorded in the runbook
-- [ ] `plan/runbook.md` lets the user run the hardware test without asking anyone
-- [ ] `CLAUDE.md`, `README.md`, `plan/README.md` match the code
-- [ ] All tests pass
+- [x] Scenarios 1–14 pass (or each exception is written up with a reason)
+- [x] Measurements recorded in the runbook
+- [x] `plan/runbook.md` lets the user run the hardware test without asking anyone
+- [x] `CLAUDE.md`, `README.md`, `plan/README.md` match the code
+- [x] All tests pass
 
 ## Handoff notes
-_(fill in when done)_
+
+**Scenarios** (all in simulation; `--device sim`, virtual robot in the dashboard unless stated)
+- 1–7, 11–13: re-run with @main's `integration.mjs`, 20/20 pass. 11 was already checked by @main and hasn't changed.
+- 8, frozen hub (process suspended with `DebugActiveProcess`, not killed):
+  - `robot_sim` stops 0.49 s in, the virtual robot 0.44 s in.
+  - **Bug fixed:** the hub came back **armed** after a 6 s freeze. The sim board caught up before any
+    stall check, so the EEG looked fresh. The engine now treats a >1.5 s gap in its own loop as
+    `eeg_stall`, with a test.
+  - `robot_sim` (the Pi template) now runs its watchdog as a separate task, so a send blocked by a
+    stalled hub can't delay the motor stop. Also tested.
+- 9: new freqs from the dashboard form.
+  - `config_id` bumps and the phone's `flicker.freqs` switch.
+  - Measured on-screen flicker is exactly 11.5/13.5/16.5/19.5 Hz.
+  - Sim gaze right/up decodes at the new freqs.
+- 10, `--device synthetic`: **exception.** It drives "right" ~99% of the time. brainflow's synthetic
+  board is a pure sine at 5 Hz × channel (C4 = 20 Hz), so that's expected, not a decoder fault. The
+  engine now adds a `warnings` entry saying so. Use `--device sim` for behaviour.
+- 14: Virtual robot switch OFF + `robot_sim`: only `sim` on `/ws/robot`.
+  - Switch ON while `robot_sim` runs: one exchange, then the twin backs off. The hub now closes a
+    replaced robot with 4001 "replaced" (protocol.md updated), so this takes ~0.5 s instead of ~3.5 s.
+  - Full screen (with the switch ON): still `virtual`, 20 fps, drives.
+
+**Other fixes**
+- Hub default `--margin` 0.08 (CLI, `EngineSettings`, stub, protocol.md, dashboard demo).
+- Video relay: never sends a frame older than 1 s. A new viewer was getting a 139 s old frame from a
+  robot that had gone, which looks like a live feed. Test added.
+- `control/contact_viz.py`: auto-detects the dongle when `--port` is omitted (reuses
+  `hub.bci.board.find_openbci_port`).
+
+**Added**
+- `plan/runbook.md`: setup, drive, fallbacks, troubleshooting, measurements.
+- `e2e/`: @main's scripts plus the Phase 2 ones (`freeze_twin.mjs`, `freeze_robot_sim.py`,
+  `s9_freqs.mjs`, `s14_switch.mjs`, `measure.py`, `load_measure.mjs`), made path-independent.
+- Docs: `CLAUDE.md` (status, map, run, gotchas), `README.md` layout, `plan/README.md` status.
+
+**Tests:** `pytest hub/tests`: 57 pass.
+
+**Not done / for the user's test**
+- No real iPhone or headset was available. The runbook's step 4 fps check and the whole of section 5
+  are the first real-hardware run. Unverified there:
+  - Safari at 120 Hz, including from the Home Screen;
+  - real decoding accuracy and false motion at margin 0.08.
+- Glass-to-glass video latency wasn't measured: there's no camera. Relay is ~4 ms; FPV
+  readback+encode ~100–150 ms.
