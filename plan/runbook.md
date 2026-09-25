@@ -42,7 +42,10 @@ repo root on the laptop, with the venv Python.
 control\.venv\Scripts\python -m hub
 ```
 - It finds the dongle, settles 3 s, then prints `Phone:` and `Dashboard:` URLs, one per network
-  adapter. The **192.168.x.x** (WiFi) one is usually right. The 172.x ones are Docker/WSL.
+  adapter. Use the address of the **WiFi adapter**: it's listed first, and the dashboard shows the
+  same one in large type as **PHONE URL**. On this laptop the WiFi address was `10.244.145.32` on
+  2026-09-25; at the venue it will differ. `172.30.208.1` is WSL (Hyper-V), never the phone's
+  address. If unsure, run `ipconfig` and take the IPv4 of the adapter that has a Default Gateway.
 - The default decoder margin is **0.08** (see Measurements for why).
 - Useful flags: `--port COM8` (skip auto-detect), `--margin 0.1`, `--dwell 3`, `--speed 0.3`,
   `--freqs 11,14,17,20`, `--model <calibration.npz>`.
@@ -59,7 +62,7 @@ Open `http://localhost:8765/dashboard/` in Chrome, in a normal visible window.
 ## 4. Phone
 
 1. Join the **same WiFi** as the laptop.
-2. In Safari, open the `Phone:` URL the hub printed, e.g. `http://192.168.0.204:8765/phone/`.
+2. In Safari, open the `Phone:` URL (the dashboard's PHONE URL), e.g. `http://10.244.145.32:8765/phone/`.
 3. Optional: *Share → Add to Home Screen*, and launch from there. That hides Safari's bars. Check
    the fps readout both ways and use whichever shows ~120.
 4. Landscape. The status line shows the **fps**. It must read **~120**. The dashboard's Links
@@ -106,7 +109,8 @@ Re-arming is always a deliberate long-press or ARM.
 
 - **Phone can't load the page** but the laptop can: the venue WiFi isolates clients.
   - Turn on the iPhone's **Personal Hotspot** and join the laptop to it.
-  - Restart the hub; it prints a new `Phone:` URL, usually `172.20.10.x`.
+  - Restart the hub; it prints a new `Phone:` URL. With an iPhone hotspot the laptop's address is
+    always `172.20.10.x` (not to be confused with WSL's `172.30.208.1`).
   - Open that on the phone. Safari may take a few seconds on the first load.
 - **"OpenBCI dongle not found"** / **"Several possible OpenBCI dongles"**: the message lists every
   port seen. Pass the right one with `--port COMx` (Device Manager → Ports: "USB Serial Port").
