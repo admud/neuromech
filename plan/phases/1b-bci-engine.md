@@ -129,13 +129,43 @@ the existing `control/ssvep_bci.Decoder`.
      under ~60 s.
 
 ## Acceptance
-- [ ] `BciEngine` matches protocol.md exactly, so 1A can swap out `StubEngine` without changes
-- [ ] `--device cyton` without a dongle fails fast with a clear message (no `input()` prompt)
-- [ ] Sim gaze drives the right direction with the right velocity signs; look-away stops
-- [ ] All safety rules in protocol.md covered by tests
-- [ ] `SimSSVEPBoard` meets the decoding accuracy targets with its default `snr`
-- [ ] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_arbiter.py hub/tests/test_engine.py hub/tests/test_sim_board.py` passes
-- [ ] Handoff notes filled in, committed, @main tagged
+- [x] `BciEngine` matches protocol.md exactly, so 1A can swap out `StubEngine` without changes
+- [x] `--device cyton` without a dongle fails fast with a clear message (no `input()` prompt)
+- [x] Sim gaze drives the right direction with the right velocity signs; look-away stops
+- [x] All safety rules in protocol.md covered by tests
+- [x] `SimSSVEPBoard` meets the decoding accuracy targets with its default `snr`
+- [x] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_arbiter.py hub/tests/test_engine.py hub/tests/test_sim_board.py` passes
+- [x] Handoff notes filled in, committed, @main tagged
 
 ## Handoff notes
-_(fill in when done)_
+
+**What exists** (all tests pass: `control/.venv/Scripts/python.exe -m pytest hub/tests/test_arbiter.py hub/tests/test_engine.py hub/tests/test_sim_board.py`, 19 + 28 tests, ~40 s)
+- `hub/bci/__init__.py` puts `control/` on `sys.path`; `BciEngine` is lazy-exported. Importing the engine does not load psychopy (checked).
+- `hub/bci/config.py`: `EngineSettings` exactly as in protocol.md, plus `DIRECTIONS`.
+- `hub/bci/board.py`: `find_openbci_port(ports=None)` (FTDI VID 0403, prefers PID 6015, skips Bluetooth/BTHENUM), `open_board(settings) -> OpenBoard(board, fs, ch_rows, ch_names, device, port)`, `BoardError` (message meant for the operator). The port is always resolved before `EEG(...)`, so there's no `input()` path.
+- `hub/bci/arbiter.py`: pure `Arbiter` (dwell, look-away drops immediately, override with a 0.5 s TTL, priority disarmed > override > EEG not ok > BCI) and `velocity()`.
+- `hub/bci/engine.py`: `BciEngine` matching protocol.md. `SeqDecoder` subclasses `ssvep_bci.Decoder` and calls back once per completed decode, detected by the scores array changing identity. The engine loop runs every 50 ms: stall check, quality every 1 s, and decoder rebuilds.
+- `hub/sim/sim_board.py`: `SimSSVEPBoard` per protocol.md, plus an optional `clock=` kwarg (tests use a fake clock) and `counter_row=0` / `timestamp_row=9`. Gaze and freq changes apply from the moment they're made.
+- Checked end to end through 1A's real server (`python -m hub --device sim`): a dashboard WS arms and sends `sim_gaze: up`, and the robot WS receives `cmd vx=0.3` 1.5 s later.
+
+**Behaviour 1A/1D should know about**
+- `handle()` returns True only when freqs actually changed. `set_config` is dashboard-only. Freqs may be a partial dict (`{"up": 12}`). One bad field rejects the whole message and nothing changes.
+- Arming is refused while EEG isn't ok (before `start()` finishes, or stalled); `status()["armed"]` shows the result. Arming resets dwell and clears any override, so a direction must dwell again after arming.
+- `override` sent while disarmed is ignored (a stale key press can't fire on arming). Disarming clears the override.
+- `set_phone_connected` / `set_robot_connected` take the aggregate bool; True→False while armed auto-disarms. A robot replacing another (True, True) doesn't disarm.
+- Extra safety beyond the brief: if no decode has arrived for max(1 s, 4 × interval), the BCI direction drops (a stuck decoder can't keep the robot moving). EEG stall is also checked lazily inside `status()`/`command()`, so it still disarms if the engine loop dies.
+- A config change (freqs/window/margin) drops the old decoder's results immediately, so `winner` goes null for about one window while the new one fills.
+- With `--model`: if live freqs differ from the calibration's, the engine falls back to plain CCA and adds a warning.
+
+**Numbers from the simulator (default snr 0.5, window 3 s)**
+- Each target decodes 100% once the window is full. Onset: dwelled direction ~1.1 s after gaze with dwell 2. Look-away → stop takes ~2 s, because the old SSVEP is still in the 3 s window. That's the decoder's latency and isn't specific to the sim.
+- Look-away winner=None rate is ~82% (76–88% across seeds). This floor belongs to `Decoder` at margin 0.06: it's the same on pure Gaussian noise, so the sim can't raise it. The test uses a fixed seed and 60 s. What matters more for safety is how often a *dwelled* false move happens while looking away:
+  - margin 0.06, dwell 2: 9.5% of decodes; dwell 3: 5.7%
+  - margin 0.08, dwell 2: 4.6%; dwell 3: 2.6%
+  - margin 0.10, dwell 2: 2.1%; dwell 3: 1.1%
+  - onset cost: +0.25 s per extra dwell step
+  - **For Phase 2 / the demo:** try margin 0.08–0.10 with the real headset (tunable live from the dashboard).
+
+**Not done / notes**
+- The real Cyton wasn't tested (no dongle plugged in). Port detection is tested with faked port lists, and `--device cyton --port COM99` fails fast with a clear error.
+- Quality `std_uv` is the raw 1 s std. On a real Cyton it includes DC drift, so treat it as relative.
