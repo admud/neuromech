@@ -106,14 +106,71 @@ CDN** (the venue may be offline).
    document "keep the sim visible" in your handoff notes.
 
 ## Acceptance
-- [ ] `/twin/` as the robot: dashboard override and sim gaze drive it through the arena; walls stop it
-- [ ] The phone page (or any `/ws/video` viewer) shows the FPV feed at ~20 fps with no build-up of lag
-- [ ] Wheels spin correctly for forward, back and both strafes
-- [ ] Watchdog stops the virtual robot when `cmd`s stop
-- [ ] `?embed=1` works inside an iframe, including key forwarding
-- [ ] 60 fps main view on this laptop while streaming FPV
-- [ ] Works with no internet (three.js vendored, no CDN)
-- [ ] Handoff notes filled in, committed, @main tagged
+- [x] `/twin/` as the robot: dashboard override and sim gaze drive it through the arena; walls stop it
+  (override tested against `python -m hub --stub`; sim gaze not yet, it needs 1B's `--device sim`, but it arrives as the same `cmd`)
+- [x] The phone page (or any `/ws/video` viewer) shows the FPV feed at ~20 fps with no build-up of lag
+- [x] Wheels spin correctly for forward, back and both strafes (the sim passes `mecanumWheelSpeeds(vx*max, vy*max, 0, dims)` in m/s; the per-wheel look is 1F's model)
+- [x] Watchdog stops the virtual robot when `cmd`s stop
+- [x] `?embed=1` works inside an iframe, including key forwarding
+- [x] 60 fps main view on this laptop while streaming FPV (~117 fps measured)
+- [x] Works with no internet (three.js vendored, no CDN)
+- [x] Handoff notes filled in, committed, @main tagged
 
 ## Handoff notes
-_(fill in when done)_
+
+**What exists** (`web/twin/`)
+- `index.html` (import map, HUD markup) · `twin.js` (main: scene, robot, cameras, loop, keys) ·
+  `net.js` (`RobotLink` on `/ws/robot` with the watchdog, read-only `DashLink` on `/ws/dashboard`) ·
+  `physics.js` (circle vs oriented boxes, slides along walls) · `world.js` (arena from the world file) ·
+  `fpv.js` (robot camera → JPEG → `/ws/robot`) · `hud.js` (3D ring/arrow + HTML overlay) ·
+  `placeholder_robot.js` (used only if `robot_model.js` fails to import) · `style.css` · `worlds/default.json` ·
+  `vendor/three/` (three r186: `three.module.js`, `three.core.js`, `addons/controls/OrbitControls.js`, LICENSE).
+
+**Run**
+- `control\.venv\Scripts\python -m hub --stub` (or `--device sim`), then open
+  `http://localhost:8765/twin/` (or let the dashboard embed `/twin/?embed=1`). It connects as robot `virtual`.
+- URL params: `embed=1` compact layout; `mode=view` watch only (doesn't take the robot slot);
+  `cam=chase|top|orbit`; `world=<name>` loads `worlds/<name>.json`; `hub=host:port` other hub.
+- Keys: `C` cycles chase → top → orbit. In an iframe, Esc, Space, arrows, WASD, 1–4, 0 go to the
+  parent as `{type:"twin-key", event, key}` (keydown and keyup); `C` stays in the sim.
+- Console/test hook: `window.twin` = `{pose, motion, robot, dash, fpv, setCamMode, model, world}`.
+
+**Behaviour**
+- `cmd` → velocity (`vx`,`vy` × `robot.max_speed_mps`, robot frame), integrated from `performance.now()`
+  deltas (capped at 0.1 s). No `cmd` for `ttl_ms` (or socket down) → zero, `watchdog_stopped: true`.
+- Telemetry at 10 Hz from a timer: `vx, vy, watchdog_stopped, battery_v:null, x, y, heading, collision`,
+  plus optional `sim_hidden` (true while the tab is hidden, i.e. physics paused). Pong on ping.
+- FPV: 640x480, hfov 70 → vfov computed, pitch from `cameraMount`, own WebGLRenderer, 20 fps, JPEG q0.7
+  (~10–12 kB). Never queues: skips the frame while an encode is in flight or `ws.bufferedAmount > 0`.
+- HUD marks (ring, dwell arrow) and the trail are on layer 1, which the FPV camera doesn't render,
+  so none of it reaches the phone's video.
+- Ring: green armed, red disarmed, grey no hub state. Arrow on the floor in the command direction:
+  full green (bci) / blue (override); amber filling with `dwell.count/needed` before it activates.
+- Robot turns red while touching a wall (`setHighlight`).
+- Two sim tabs in one browser: the newest takes `/ws/robot`, older ones release it (BroadcastChannel)
+  and show "Take over as robot". Across browsers, a sim closed right after connecting 3 times in a row
+  (or with close code 4001 / reason "replaced") stops reconnecting instead of fighting.
+
+**World file (additive optional fields)**
+- The perimeter is implicit from `arena.size`; `arena.wall_h`/`wall_t` set its height/thickness (0.3/0.1).
+- `walls[].color`, and `goal: {x, y, r}` (green pad + flag at the far end of the course).
+- `default.json`: 6x4 m, spawn (-2.5, 0), a two-wall slalom (forward, strafe right round the blue wall,
+  forward, strafe left round the orange one, forward to the goal) plus three boxes.
+
+**Keep the sim visible.** Browsers throttle hidden tabs: physics and FPV stop (the phone's video freezes),
+telemetry drops to ~1 Hz with `sim_hidden: true`, and the page shows a red "Sim hidden" banner.
+Don't minimise the dashboard window or switch its tab during a run.
+
+**Tested** (headless Chrome with the laptop's Intel GPU)
+- Mock hub: hello/telemetry/pong, JPEG frames 19.9 fps; forward stops at exactly x = wall − radius
+  with `collision: true`; fwd+right slides round the wall end; cmds stopped → still, `watchdog_stopped` in 0.5 s.
+- Real hub `--stub`: arm + override left/up/none/right/down → moves +y/+x/stops/−y/−x; `/ws/video` viewer
+  gets 20.0 fps valid JPEGs through the relay; disarm on `phone_lost` shown.
+- Iframe: all forwarded keys arrive in the parent, `C` stays, others ignored. Second tab takes over cleanly.
+- Main view ~117 fps while streaming. Placeholder model smoke-tested.
+
+**Not done / notes**
+- Not yet seen on the iPhone itself, nor with 1B's `--device sim` sim gaze (both are Phase 2).
+- Top view is a perspective camera from high above (slight parallax on walls), not orthographic.
+- Suggestion for 1A (optional): close a replaced robot with code 4001 / reason "replaced" so the loser
+  stops reconnecting at once instead of after 3 short connections.

@@ -23,11 +23,16 @@ export class RobotHud3D {
     ring.renderOrder = 1;
     this.object.add(ring);
 
-    // Arrow pointing +x, flat, floating above the robot.
+    // Arrow flat on the floor, starting just outside the ring and pointing
+    // the way the robot is (or is about to be) driven. Floating above the
+    // robot it was edge-on to the chase camera and hard to read.
     this.arrow = new THREE.Group();
-    this.arrow.position.z = dims.height + 0.08;
+    this.arrow.position.z = 0.008;
     this.object.add(this.arrow);
-    const L = Math.max(0.22, r * 1.8), shaftEnd = L * 0.62, sw = L * 0.16;
+    const inner = new THREE.Group();
+    inner.position.x = r + 0.07;
+    this.arrow.add(inner);
+    const L = Math.max(0.3, r * 2), shaftEnd = L * 0.6, sw = L * 0.18;
     this.shaftLen = shaftEnd - 0.02;
     const head = new THREE.Shape();
     head.moveTo(shaftEnd, -sw * 1.6); head.lineTo(L, 0); head.lineTo(shaftEnd, sw * 1.6); head.closePath();
@@ -35,17 +40,19 @@ export class RobotHud3D {
     const shaftGeo = new THREE.PlaneGeometry(1, sw);
     shaftGeo.translate(0.5, 0, 0);        // grows from x = 0 when scaled
 
-    const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
-    this.fillMat = new THREE.MeshBasicMaterial({ color: COLOR.dwell, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+    const ghostMat = new THREE.MeshBasicMaterial({ color: 0x10141a, transparent: true, opacity: 0.3, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+    this.fillMat = new THREE.MeshBasicMaterial({ color: COLOR.dwell, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthTest: false });
     const ghostShaft = new THREE.Mesh(shaftGeo, ghostMat);
     ghostShaft.position.x = 0.02; ghostShaft.scale.x = this.shaftLen;
-    this.arrow.add(ghostShaft, new THREE.Mesh(headGeo, ghostMat));
+    inner.add(ghostShaft, new THREE.Mesh(headGeo, ghostMat));
     this.fillShaft = new THREE.Mesh(shaftGeo, this.fillMat);
     this.fillShaft.position.set(0.02, 0, 0.001);
     this.fillHead = new THREE.Mesh(headGeo, this.fillMat);
     this.fillHead.position.z = 0.001;
-    this.arrow.add(this.fillShaft, this.fillHead);
-    for (const m of this.arrow.children) m.renderOrder = 2;
+    inner.add(this.fillShaft, this.fillHead);
+    // No depth test (stays visible over walls), so draw order does the layering.
+    for (const m of inner.children) m.renderOrder = 2;
+    this.fillShaft.renderOrder = this.fillHead.renderOrder = 3;
     this.arrow.visible = false;
   }
 

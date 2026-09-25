@@ -22,6 +22,9 @@ const FORWARD_KEYS = new Set(["Escape", " ", "ArrowUp", "ArrowDown", "ArrowLeft"
 const TELEMETRY_MS = 100;
 const MAX_DT = 0.1;            // s: longer gaps (tab was hidden) aren't integrated
 const TRAIL_POINTS = 2000;
+// HUD marks and the trail live on their own layer: the main view renders
+// it, the FPV camera (the phone's video) doesn't.
+const HUD_LAYER = 1;
 
 document.body.classList.toggle("embed", EMBED);
 
@@ -83,6 +86,7 @@ async function main() {
   scene.add(poseGroup);
   const hud3d = new RobotHud3D({ ...dims, footprintRadius: radius });
   poseGroup.add(hud3d.object);
+  hud3d.object.traverse((o) => o.layers.set(HUD_LAYER));
 
   const pose = { x: world.spawn.x, y: world.spawn.y, heading: world.spawn.heading || 0 };
   const maxSpeed = world.robot.max_speed_mps || 0.5;
@@ -95,6 +99,7 @@ async function main() {
   trailGeo.setDrawRange(0, 0);
   const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x36a3ff, transparent: true, opacity: 0.8 }));
   trail.frustumCulled = false;
+  trail.layers.set(HUD_LAYER);
   scene.add(trail);
   let trailN = 0;
   function pushTrail(x, y) {
@@ -117,6 +122,7 @@ async function main() {
 
   // --- main view cameras --------------------------------------------------
   const camera = new THREE.PerspectiveCamera(55, 1, 0.02, 100);
+  camera.layers.enable(HUD_LAYER);
   const orbit = new OrbitControls(camera, canvas);
   orbit.enableDamping = true;
   orbit.enabled = false;
