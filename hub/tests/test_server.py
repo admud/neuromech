@@ -1,5 +1,8 @@
+import time
+
 from fastapi.testclient import TestClient
 
+import hub.server as server
 from hub.server import create_app
 from hub.stub_engine import StubEngine
 
@@ -10,6 +13,15 @@ def receive_type(ws, kind, limit=20):
         if msg.get("type") == kind:
             return msg
     raise AssertionError(f"No {kind} in {limit} messages")
+
+
+def until(predicate, timeout=1.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.01)
+    assert predicate()
 
 
 def test_health_and_phone_config_arm():
@@ -56,6 +68,34 @@ def test_disconnect_does_not_stop_state_stream():
             second = receive_type(survivor, "state")
             assert second["t_hub"] > first["t_hub"]
             assert second["phone"]["connected"] is True
+
+
+def test_silent_phone_is_disconnected_and_disarms(monkeypatch):
+    monkeypatch.setattr(server, "IDLE_TIMEOUT_S", 0.25)
+    engine = StubEngine()
+    with TestClient(create_app(engine)) as client:
+        with client.websocket_connect("/ws/phone") as phone:
+            phone.receive_json()
+            phone.send_json({"type": "arm", "armed": True})
+            until(lambda: engine.armed)
+            until(lambda: not engine.phone)
+            assert engine.armed is False
+            assert engine.reason == "phone_lost"
+
+
+def test_silent_robot_is_disconnected_and_disarms(monkeypatch):
+    monkeypatch.setattr(server, "IDLE_TIMEOUT_S", 0.25)
+    engine = StubEngine()
+    with TestClient(create_app(engine)) as client:
+        with client.websocket_connect("/ws/robot") as robot:
+            robot.send_json({"type": "hello", "client": "robot", "name": "sim"})
+            robot.send_json({"type": "telemetry", "vx": 0, "vy": 0,
+                             "watchdog_stopped": False})
+            until(lambda: engine.robot)
+            engine.handle({"type": "arm", "armed": True}, "dashboard")
+            until(lambda: not engine.robot)
+            assert engine.armed is False
+            assert engine.reason == "robot_lost"
 
 
 def test_robot_commands_video_and_replacement():

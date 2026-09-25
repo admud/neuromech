@@ -143,3 +143,10 @@ appeared. Five hub tests pass. A live smoke test confirmed health, dashboard
 state, robot telemetry, and JPEG delivery. The dashboard static route is
 registered when its directory exists at hub startup (the 1D page was still
 being built at this handoff).
+
+Review follow-up: phone sockets now expire after 3 s without any incoming
+message, and robot sockets expire after 3 s without `telemetry` or `pong`
+(video frames alone do not keep the robot link alive). Expiry closes the
+socket and calls the engine's disconnect hook, so a silent last phone or
+robot disarms immediately. Robot send failures also retire the connection.
+Two timeout regression tests were added; seven hub tests now pass.

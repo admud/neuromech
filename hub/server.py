@@ -17,6 +17,7 @@ from .video import VideoRelay
 
 
 ROOT = Path(__file__).resolve().parent.parent
+IDLE_TIMEOUT_S = 3.0
 mimetypes.add_type("text/javascript", ".js")
 
 
@@ -43,6 +44,15 @@ def create_app(engine, http_port=8765):
         phones.discard(peer)
         if not phones:
             engine.set_phone_connected(False)
+
+    async def close_stale(ws):
+        with suppress(Exception):
+            await asyncio.wait_for(ws.close(code=1001), timeout=0.08)
+
+    def retire_robot(peer):
+        if robot["peer"] is peer:
+            robot.update(peer=None, name=None, telemetry={}, rtt_ms=None, ping_at=None)
+            engine.set_robot_connected(False)
 
     async def fanout(peers, message):
         for peer in tuple(peers):
@@ -118,9 +128,12 @@ def create_app(engine, http_port=8765):
         phones.add(peer)
         if len(phones) == 1:
             engine.set_phone_connected(True)
+        last_message = time.monotonic()
         try:
             while True:
-                msg = await receive_json(ws)
+                remaining = max(0.001, last_message + IDLE_TIMEOUT_S - time.monotonic())
+                msg = await asyncio.wait_for(receive_json(ws), timeout=remaining)
+                last_message = time.monotonic()
                 kind = msg.get("type")
                 if kind == "frame_stats":
                     for key in ("fps", "p95_ms", "dropped", "rtt_ms"):
@@ -133,6 +146,8 @@ def create_app(engine, http_port=8765):
                                      "t_hub": time.monotonic()})
         except (WebSocketDisconnect, RuntimeError):
             pass
+        except asyncio.TimeoutError:
+            await close_stale(ws)
         finally:
             await drop_phone(peer)
 
@@ -191,6 +206,7 @@ def create_app(engine, http_port=8765):
                     next_ping = start + 1
                 await asyncio.sleep(max(0, start + 0.1 - time.monotonic()))
         except Exception:
+            retire_robot(peer)
             with suppress(Exception):
                 await asyncio.wait_for(peer.ws.close(), timeout=0.08)
 
@@ -205,9 +221,11 @@ def create_app(engine, http_port=8765):
         robot.update(peer=peer, name=None, telemetry={}, rtt_ms=None, ping_at=None)
         engine.set_robot_connected(True)
         sender = asyncio.create_task(robot_send(peer))
+        last_liveness = time.monotonic()
         try:
             while True:
-                event = await ws.receive()
+                remaining = max(0.001, last_liveness + IDLE_TIMEOUT_S - time.monotonic())
+                event = await asyncio.wait_for(ws.receive(), timeout=remaining)
                 if event["type"] == "websocket.disconnect":
                     break
                 if event.get("bytes") is not None:
@@ -224,17 +242,20 @@ def create_app(engine, http_port=8765):
                 if kind == "hello":
                     robot["name"] = msg.get("name")
                 elif kind == "telemetry":
+                    last_liveness = time.monotonic()
                     robot["telemetry"] = {k: v for k, v in msg.items() if k != "type"}
-                elif kind == "pong" and isinstance(msg.get("t_hub"), (int, float)):
-                    robot["rtt_ms"] = round((time.monotonic() - msg["t_hub"]) * 1000, 1)
+                elif kind == "pong":
+                    last_liveness = time.monotonic()
+                    if isinstance(msg.get("t_hub"), (int, float)):
+                        robot["rtt_ms"] = round((time.monotonic() - msg["t_hub"]) * 1000, 1)
         except (WebSocketDisconnect, RuntimeError):
             pass
+        except asyncio.TimeoutError:
+            await close_stale(ws)
         finally:
             sender.cancel()
             with suppress(asyncio.CancelledError):
                 await sender
-            if robot["peer"] is peer:
-                robot.update(peer=None, name=None, telemetry={}, rtt_ms=None, ping_at=None)
-                engine.set_robot_connected(False)
+            retire_robot(peer)
 
     return app
