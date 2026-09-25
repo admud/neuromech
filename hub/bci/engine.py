@@ -447,6 +447,11 @@ class BciEngine:
               for f in freqs if f > MAX_FREQ_WARN]
         if self._model_warning:
             w.append(self._model_warning)
+        if self.settings.device == "synthetic":
+            # brainflow's synthetic board is a sine at 5 Hz x channel number on
+            # every channel (C4 = 20 Hz), so it "looks at" a target all the time.
+            w.append("synthetic board: test sines, not EEG (C4 is a 20 Hz sine and decodes "
+                     "as a target); use --device sim for realistic behaviour")
         return w
 
 

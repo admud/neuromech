@@ -59,6 +59,7 @@ def test_synthetic_start_stop_and_status_shape():
         assert eeg["device"] == "synthetic" and eeg["fs"] == 250 and eeg["ok"] is True
         assert len(eeg["channels"]) == 4 and eeg["stalled_s"] < 1.0
         assert st["sim"] is None
+        assert any("synthetic board" in w for w in st["warnings"])
         assert st["winner"] in (None, "up", "down", "left", "right")
         assert wait_for(lambda: len(e.status()["eeg"]["quality"]) == 4, 2.0)
         q = e.status()["eeg"]["quality"][0]
