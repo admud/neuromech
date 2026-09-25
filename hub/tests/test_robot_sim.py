@@ -37,3 +37,26 @@ async def _exercise_robot():
     assert "frame" in observations
     assert any(m["y"] > 0 for m in telemetry)
     assert any(m["watchdog_stopped"] and m["vy"] == 0 for m in telemetry)
+
+
+def test_watchdog_runs_while_sends_are_blocked():
+    # A stalled hub stops reading; the robot's sends then block. The motor
+    # stop must not depend on them.
+    async def scenario():
+        robot = RobotSim()
+        robot.drive(0.3, 0.0)
+        robot.last_cmd = time.monotonic()
+        robot.watchdog_stopped = False
+        blocked = asyncio.Event()              # never set: a send that never returns
+        sender = asyncio.create_task(blocked.wait())
+        dog = asyncio.create_task(robot._watchdog())
+        await asyncio.sleep(0.4)
+        still = (robot.vx, robot.watchdog_stopped)
+        await asyncio.sleep(0.2)
+        dog.cancel()
+        sender.cancel()
+        return still, (robot.vx, robot.watchdog_stopped)
+
+    before, after = asyncio.run(scenario())
+    assert before == (0.3, False)
+    assert after == (0.0, True)

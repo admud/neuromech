@@ -57,11 +57,21 @@ class RobotSim:
             raise RuntimeError("JPEG encode failed")
         return encoded.tobytes()
 
-    def _advance(self, now, previous):
+    def _check_watchdog(self, now):
         if self.last_cmd is None or now - self.last_cmd > self.ttl_s:
             if not self.watchdog_stopped:
                 self.drive(0, 0)
             self.watchdog_stopped = True
+
+    async def _watchdog(self):
+        # Its own task, so a send blocked by a stalled hub or a congested
+        # link can never delay the motor stop.
+        while True:
+            self._check_watchdog(time.monotonic())
+            await asyncio.sleep(0.02)
+
+    def _advance(self, now, previous):
+        self._check_watchdog(now)
         dt = min(now - previous, 0.25)
         self.x += self.vx * self.max_speed * dt
         self.y += self.vy * self.max_speed * dt
@@ -112,12 +122,13 @@ class RobotSim:
                                   "video": {"w": 640, "h": 480, "fps": self.fps}}))
         receiver = asyncio.create_task(self._receive(ws))
         ticker = asyncio.create_task(self._tick(ws))
+        watchdog = asyncio.create_task(self._watchdog())
         try:
-            done, pending = await asyncio.wait((receiver, ticker), return_when=asyncio.FIRST_COMPLETED)
+            done, pending = await asyncio.wait((receiver, ticker, watchdog), return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
         finally:
-            for task in (receiver, ticker):
+            for task in (receiver, ticker, watchdog):
                 task.cancel()
                 with suppress(asyncio.CancelledError, ConnectionClosed):
                     await task

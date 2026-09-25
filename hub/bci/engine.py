@@ -81,6 +81,7 @@ class BciEngine:
         self._started = False
         self._last_sample = None
         self._last_change_t = 0.0
+        self._last_tick_t = None    # engine loop's previous tick
         self._quality = []
         self._sim_gaze = None
         self._config_id = 1
@@ -378,6 +379,13 @@ class BciEngine:
     def _tick(self, now, do_quality):
         with self._lock:
             ob, rebuild, gen = self._ob, self._rebuild, self._gen
+            # The whole process was frozen (suspended, debugger, sleep): the
+            # EEG would look fresh again as soon as the board catches up, so
+            # treat the gap itself as a stall rather than resume armed.
+            if self._last_tick_t is not None and now - self._last_tick_t > STALL_S:
+                _log("engine loop stalled %.1f s" % (now - self._last_tick_t))
+                self._disarm("eeg_stall")
+            self._last_tick_t = now
         if ob is None:
             return
         if rebuild:

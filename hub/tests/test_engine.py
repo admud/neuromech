@@ -390,3 +390,19 @@ def test_cyton_bad_port_fails_fast(monkeypatch):
 def test_unknown_device():
     with pytest.raises(boardmod.BoardError):
         BciEngine(EngineSettings(device="muse")).start()
+
+
+def test_frozen_process_disarms_on_resume(sim_engine):
+    # A frozen hub (e.g. suspended) must not come back armed, even though the
+    # board catches up and the newest sample looks fresh again.
+    e = sim_engine
+    assert arm(e)
+    e._running = False                      # stop the loop, as if the process froze
+    e._loop_thread.join(timeout=1.0)
+    time.sleep(1.7)
+    e._last_change_t = time.monotonic()     # board caught up before any status() call
+    e._running = True
+    e._loop_thread = threading.Thread(target=e._loop, daemon=True)
+    e._loop_thread.start()
+    assert wait_for(lambda: not e.status()["armed"], 1.0)
+    assert e.status()["disarm_reason"] == "eeg_stall"
