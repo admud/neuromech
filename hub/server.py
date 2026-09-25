@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import math
 import mimetypes
 import time
 from contextlib import asynccontextmanager, suppress
@@ -50,7 +51,7 @@ def create_app(engine, http_port=8765):
             except Exception:
                 peers.discard(peer)
                 with suppress(Exception):
-                    await peer.ws.close()
+                    await asyncio.wait_for(peer.ws.close(), timeout=0.08)
                 if peers is phones:
                     await drop_phone(peer)
 
@@ -123,7 +124,7 @@ def create_app(engine, http_port=8765):
                 kind = msg.get("type")
                 if kind == "frame_stats":
                     for key in ("fps", "p95_ms", "dropped", "rtt_ms"):
-                        if isinstance(msg.get(key), (int, float)):
+                        if isinstance(msg.get(key), (int, float)) and math.isfinite(msg[key]):
                             phone_stats[key] = msg[key]
                 elif kind == "arm":
                     engine.handle(msg, "phone")
@@ -180,16 +181,18 @@ def create_app(engine, http_port=8765):
                 start = time.monotonic()
                 command = engine.command()
                 seq += 1
-                await peer.send({"type": "cmd", "seq": seq, "vx": command["vx"],
-                                 "vy": command["vy"], "ttl_ms": 500})
+                await asyncio.wait_for(peer.send({"type": "cmd", "seq": seq,
+                                                  "vx": command["vx"], "vy": command["vy"],
+                                                  "ttl_ms": 500}), timeout=0.08)
                 if start >= next_ping:
                     robot["ping_at"] = start
-                    await peer.send({"type": "ping", "t_hub": start})
+                    await asyncio.wait_for(peer.send({"type": "ping", "t_hub": start}),
+                                           timeout=0.08)
                     next_ping = start + 1
                 await asyncio.sleep(max(0, start + 0.1 - time.monotonic()))
         except Exception:
             with suppress(Exception):
-                await peer.ws.close()
+                await asyncio.wait_for(peer.ws.close(), timeout=0.08)
 
     @app.websocket("/ws/robot")
     async def ws_robot(ws: WebSocket):
@@ -198,7 +201,7 @@ def create_app(engine, http_port=8765):
         old = robot["peer"]
         if old is not None:
             with suppress(Exception):
-                await old.ws.close()
+                await asyncio.wait_for(old.ws.close(), timeout=0.08)
         robot.update(peer=peer, name=None, telemetry={}, rtt_ms=None, ping_at=None)
         engine.set_robot_connected(True)
         sender = asyncio.create_task(robot_send(peer))
@@ -222,7 +225,7 @@ def create_app(engine, http_port=8765):
                     robot["name"] = msg.get("name")
                 elif kind == "telemetry":
                     robot["telemetry"] = {k: v for k, v in msg.items() if k != "type"}
-                elif kind == "pong" and msg.get("t_hub") is not None:
+                elif kind == "pong" and isinstance(msg.get("t_hub"), (int, float)):
                     robot["rtt_ms"] = round((time.monotonic() - msg["t_hub"]) * 1000, 1)
         except (WebSocketDisconnect, RuntimeError):
             pass

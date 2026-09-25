@@ -1,5 +1,3 @@
-import time
-
 from fastapi.testclient import TestClient
 
 from hub.server import create_app
@@ -18,6 +16,10 @@ def test_health_and_phone_config_arm():
     engine = StubEngine()
     with TestClient(create_app(engine)) as client:
         assert client.get("/api/health").json() == {"ok": True}
+        assert client.get("/", follow_redirects=False).headers["location"] == "/phone/"
+        assert client.get("/phone/").status_code == 200
+        assert client.get("/phone/phone.js").headers["content-type"].startswith("text/javascript")
+        assert client.get("/twin/").status_code == 200
         with client.websocket_connect("/ws/phone") as phone:
             assert phone.receive_json()["type"] == "config"
             phone.send_json({"type": "arm", "armed": True})
@@ -44,6 +46,18 @@ def test_config_rebroadcast():
                 assert receive_type(phone, "config")["targets"][0]["freq"] == 12.0
 
 
+def test_disconnect_does_not_stop_state_stream():
+    with TestClient(create_app(StubEngine())) as client:
+        with client.websocket_connect("/ws/phone") as survivor:
+            survivor.receive_json()
+            with client.websocket_connect("/ws/phone") as departing:
+                departing.receive_json()
+            first = receive_type(survivor, "state")
+            second = receive_type(survivor, "state")
+            assert second["t_hub"] > first["t_hub"]
+            assert second["phone"]["connected"] is True
+
+
 def test_robot_commands_video_and_replacement():
     with TestClient(create_app(StubEngine())) as client:
         with client.websocket_connect("/ws/video") as viewer:
@@ -55,6 +69,10 @@ def test_robot_commands_video_and_replacement():
                 frame = b"\xff\xd8test\xff\xd9"
                 first.send_bytes(frame)
                 assert viewer.receive_bytes() == frame
+                first.send_bytes(b"old")
+                first.send_bytes(b"new")
+                with client.websocket_connect("/ws/video") as late_viewer:
+                    assert late_viewer.receive_bytes() == b"new"
                 with client.websocket_connect("/ws/robot") as second:
                     assert receive_type(second, "cmd")["seq"] > cmd2["seq"]
                     second.send_json({"type": "hello", "name": "sim", "client": "robot"})

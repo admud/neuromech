@@ -44,7 +44,8 @@ class StubEngine:
                     "targets": [{"id": k, "freq": self.freqs[k]} for k in TARGETS]}
 
     def _winner(self):
-        return (*TARGETS, None)[int((time.monotonic() - self.started) / 3) % 5]
+        return ("up", "right", "down", "left", None)[
+            int((time.monotonic() - self.started) / 3) % 5]
 
     def command(self):
         with self.lock:

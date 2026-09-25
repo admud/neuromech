@@ -120,14 +120,26 @@ client + OpenCV.
      the right way (`vy` positive = left), and the watchdog stops it.
 
 ## Acceptance
-- [ ] `python -m hub --stub` serves `/api/health`, and `/phone/`, `/dashboard/`, `/twin/` once those folders exist
-- [ ] `robot_sim` drives against `python -m hub --stub`; its watchdog works
-- [ ] Phone and dashboard sockets receive `config` then `state` at ~10 Hz
-- [ ] A robot client receives `cmd` at 10 Hz and its JPEGs reach `/ws/video` viewers with no queue build-up (slow viewer = skipped frames, not delay)
-- [ ] Killing a client mid-stream never stops the broadcast or `cmd` loops
-- [ ] `python -m hub --device synthetic` works once 1B has landed
-- [ ] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_server.py hub/tests/test_robot_sim.py` passes
-- [ ] Handoff notes filled in, committed, @main tagged
+- [x] `python -m hub --stub` serves `/api/health`, and `/phone/`, `/dashboard/`, `/twin/` once those folders exist
+- [x] `robot_sim` drives against `python -m hub --stub`; its watchdog works
+- [x] Phone and dashboard sockets receive `config` then `state` at ~10 Hz
+- [x] A robot client receives `cmd` at 10 Hz and its JPEGs reach `/ws/video` viewers with no queue build-up (slow viewer = skipped frames, not delay)
+- [x] Killing a client mid-stream never stops the broadcast or `cmd` loops
+- [x] `python -m hub --device synthetic` works once 1B has landed
+- [x] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_server.py hub/tests/test_robot_sim.py` passes
+- [x] Handoff notes filled in, committed, @main tagged
 
 ## Handoff notes
-_(fill in when done: what exists, how to run it, known gaps)_
+`hub/` now serves static pages and all four sockets, broadcasts state and robot
+commands at 10 Hz, and relays the newest JPEG without a frame queue. `--stub`
+provides a fake BCI engine; `hub.sim.robot_sim` provides a headless robot with
+test video, pose telemetry, reconnect, and a 500 ms command watchdog. The
+CLI prints all detected LAN addresses and stops the engine on shutdown.
+
+From the repo root, run `control/.venv/Scripts/python.exe -m hub --stub` and,
+in another terminal, `control/.venv/Scripts/python.exe -m hub.sim.robot_sim`.
+`--device synthetic` was also started successfully after the 1B engine files
+appeared. Five hub tests pass. A live smoke test confirmed health, dashboard
+state, robot telemetry, and JPEG delivery. The dashboard static route is
+registered when its directory exists at hub startup (the 1D page was still
+being built at this handoff).
