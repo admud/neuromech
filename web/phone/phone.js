@@ -201,7 +201,7 @@ const phoneHandlers = {
   },
 };
 
-const phone = DEMO ? new DemoPhoneLink(phoneHandlers) : new Link("/ws/phone", phoneHandlers);
+const phone = DEMO ? new DemoPhoneLink(phoneHandlers) : new Link("/ws/phone", phoneHandlers, { staleMs: 2500 });
 if (!DEMO) el.disconnected.style.display = "block";
 
 function sendPing() { phone.send({ type: "ping", t_client: performance.now() / 1000 }); }

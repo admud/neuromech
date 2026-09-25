@@ -53,7 +53,7 @@ const handlers = {
     }
   },
 };
-const hub = DEMO ? new DemoDashLink(handlers) : new Link("/ws/dashboard", handlers);
+const hub = DEMO ? new DemoDashLink(handlers) : new Link("/ws/dashboard", handlers, { staleMs: 2500 });
 if (!DEMO) $("disconnected").style.display = "block";
 const send = (m) => hub.send(m);
 
