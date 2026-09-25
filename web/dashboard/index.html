@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<title>NeuroMech dashboard</title>
+</head>
+<body>
+<header id="safety">
+  <div id="armbox" class="disarmed">
+    <div id="armword">DISARMED</div>
+    <div id="armreason">startup</div>
+  </div>
+  <button id="btn-arm" type="button">ARM</button>
+  <button id="btn-stop" type="button">STOP <small>Esc / Space</small></button>
+  <div id="cmdbox">
+    <div class="label">command</div>
+    <div id="cmd-dir">·</div>
+    <div id="cmd-detail"></div>
+  </div>
+  <div id="urlbox">
+    <div class="label">phone URL</div>
+    <div id="phone-url">…</div>
+  </div>
+  <div id="linkbox"><span id="hub-dot" class="dot bad"></span> hub <span id="hub-rtt"></span></div>
+</header>
+<div id="disconnected">DISCONNECTED from hub · reconnecting…</div>
+
+<main>
+  <section id="simpanel" class="panel">
+    <div class="panel-head">
+      <h2>Virtual sim</h2>
+      <label class="switch"><input id="virt" type="checkbox"> Virtual robot</label>
+      <button id="btn-fs" type="button">Full screen</button>
+      <span class="hint">Only one sim at a time: don't open /twin/ in another tab.</span>
+    </div>
+    <div id="simbody"></div>
+  </section>
+
+  <section id="side">
+    <div class="panel" id="decoder">
+      <div class="panel-head"><h2>Decoder</h2><span id="decode-ms"></span></div>
+      <div id="scores"></div>
+      <div id="dwell"><span class="label">dwell</span> <span id="dwell-dir"></span> <span id="dwell-pips"></span></div>
+      <div id="warnings"></div>
+    </div>
+
+    <div class="panel" id="drive">
+      <div class="panel-head"><h2>Drive</h2><span class="hint">arrows / WASD, needs ARMED</span></div>
+      <div class="drive-row">
+        <div id="dpad">
+          <button data-dir="up" type="button">▲</button>
+          <button data-dir="left" type="button">◀</button>
+          <button data-dir="right" type="button">▶</button>
+          <button data-dir="down" type="button">▼</button>
+        </div>
+        <div>
+          <div>override: <b id="ovr">none</b></div>
+          <div id="ovr-note" class="warn"></div>
+          <div id="gaze" hidden>
+            <div class="label">sim gaze (keys 1–4, 0)</div>
+            <div id="gaze-btns">
+              <button data-gaze="up" type="button">1 up</button>
+              <button data-gaze="down" type="button">2 down</button>
+              <button data-gaze="left" type="button">3 left</button>
+              <button data-gaze="right" type="button">4 right</button>
+              <button data-gaze="" type="button">0 none</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tuning">
+      <div class="panel-head"><h2>Tuning</h2><span id="tune-status"></span></div>
+      <form id="tune-form" autocomplete="off">
+        <label>up Hz <input name="f_up" type="number" step="0.1" min="1" max="60"></label>
+        <label>down Hz <input name="f_down" type="number" step="0.1" min="1" max="60"></label>
+        <label>left Hz <input name="f_left" type="number" step="0.1" min="1" max="60"></label>
+        <label>right Hz <input name="f_right" type="number" step="0.1" min="1" max="60"></label>
+        <label>window s <input name="window_s" type="number" step="0.1" min="0.5" max="10"></label>
+        <label>margin <input name="margin" type="number" step="0.01" min="0" max="1"></label>
+        <label>dwell <input name="dwell" type="number" step="1" min="1" max="20"></label>
+        <label>speed <input name="speed" type="number" step="0.05" min="0" max="1"></label>
+        <div class="form-btns">
+          <button id="tune-apply" type="submit">Apply</button>
+          <button id="tune-reset" type="button">Reset</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel" id="links">
+      <div class="panel-head"><h2>Links</h2></div>
+      <div id="links-body"></div>
+    </div>
+
+    <div class="panel" id="vidpanel">
+      <div class="panel-head"><h2>Video</h2><span id="vid-info"></span></div>
+      <div id="vidslot"><canvas id="video"></canvas></div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>
