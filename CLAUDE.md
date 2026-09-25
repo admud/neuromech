@@ -19,10 +19,10 @@ Robot camera ──WiFi──► PC hub ──WiFi──► iPhone Safari (video
 Robot motors ◄──WiFi── PC hub ◄──USB radio dongle── OpenBCI Cyton headset
 ```
 
-Until the physical robot exists, the robot is **virtual**: a three.js
-digital twin in the laptop browser drives a robot through a 3D arena and
-streams its first-person camera to the phone as the video. Later the twin
-follows the real robot and overlays virtual walls on its camera feed (AR).
+Until the physical robot exists, the robot is **virtual**: a three.js sim
+in the laptop browser drives a model of our robot through a 3D arena and
+streams its first-person camera to the phone as the video. It's for testing
+only; once the real robot is in, its camera feed replaces the sim's.
 
 ## Status (2026-09-25)
 
@@ -30,7 +30,7 @@ follows the real robot and overlays virtual walls on its camera feed (AR).
 - `hub/`, `web/`: **planned, being built.** See [plan/README.md](plan/README.md)
   for phases, owners and status. Until Phase 2 finishes, the parts of this
   file about them describe the plan, not finished code.
-- `robot/` (RPi agent) and the AR twin: Phase 3, after the robot exists.
+- `robot/` (RPi agent): Phase 3, after the robot exists.
 
 ## Repo map
 
@@ -40,7 +40,7 @@ README.md               short project readme
 plan/                   build plan: start at plan/README.md
   architecture.md       system design, decisions log, latency budget, iPhone setup
   protocol.md           THE CONTRACT: routes, messages, Python interfaces, safety model
-  phases/               one brief per agent (1a..1f parallel, 2 integration, 3a/3b later)
+  phases/               one brief per agent (1a..1f parallel, 2 integration, 3a later)
   assets/               reference material (robot photo)
 control/                SSVEP BCI (EEG-ExPy fork + our scripts). Has its own README.
   ssvep_bci.py          live decoder GUI; `Decoder` class (filter-bank CCA) is reused by the hub
@@ -62,10 +62,10 @@ hub/                    [planned] PC hub, Python package, run as `python -m hub`
 web/                    [planned] static pages served by the hub, no build step
   phone/                iPhone page: flicker targets + video + STOP/ARM
   dashboard/            operator dashboard (embeds the twin in an iframe)
-  twin/                 three.js digital twin; mode=robot is the virtual robot, mode=view follows one
+  twin/                 three.js 3D sim; the page IS the virtual robot on /ws/robot
     robot_model.js      our robot built from primitives + mecanumWheelSpeeds() (no modelling software)
     model.html          standalone preview of the robot model
-    worlds/default.json the virtual arena (walls, gates, robot camera), also used by Phase 3
+    worlds/default.json the virtual arena (walls, spawn, robot camera)
     vendor/three/       vendored three.js (no CDN)
 robot/                  [Phase 3] Raspberry Pi robot agent
 ```
@@ -99,8 +99,7 @@ control\.venv\Scripts\python -m hub --device sim       # fake EEG; drive via das
 control\.venv\Scripts\python -m hub --stub             # fake engine, for UI work
 control\.venv\Scripts\python -m hub.sim.robot_sim --video test   # headless fake robot
 #   phone:     http://<laptop-lan-ip>:8765/phone/
-#   dashboard: http://localhost:8765/dashboard/   (its twin iframe is the virtual robot)
-#   twin:      http://localhost:8765/twin/?mode=view   (full-screen spectator)
+#   dashboard: http://localhost:8765/dashboard/   (its sim iframe is the virtual robot)
 
 # tests
 control\.venv\Scripts\python -m pytest hub/tests
@@ -135,9 +134,9 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
    any link loss disarms; re-arming is explicit; `cmd` goes out at 10 Hz even
    when zero; every robot implementation stops itself if `cmd`s stop for `ttl_ms`.
 6. **Video relay never queues:** newest frame wins, stale frames are dropped.
-7. **One robot protocol:** the twin (`virtual`), `robot_sim` (`sim`) and the
-   RPi (`rpi`) all speak `/ws/robot` identically. Only one is connected at a
-   time; a new one replaces the old. Never open two `mode=robot` twins.
+7. **One robot protocol:** the 3D sim (`virtual`), `robot_sim` (`sim`) and
+   the RPi (`rpi`) all speak `/ws/robot` identically. Only one is connected
+   at a time; a new one replaces the old. Never open `/twin/` twice.
 8. **[plan/protocol.md](plan/protocol.md) is the contract.** Change it
    deliberately and update every side.
 
@@ -162,9 +161,9 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
 - Windows Firewall must allow Python on **Public** networks for the phone to connect.
 - This laptop has Docker/WSL virtual adapters, so the "LAN IP" guess can be
   wrong. The hub prints all candidates.
-- Browsers throttle hidden tabs: a `mode=robot` twin in a background tab
-  freezes (and its FPV feed stops). Keep it visible.
-- Keys pressed inside the twin iframe don't reach the dashboard; the twin
+- Browsers throttle hidden tabs: the 3D sim in a background tab freezes
+  (and its FPV feed stops). Keep it visible.
+- Keys pressed inside the sim iframe don't reach the dashboard; the sim
   forwards STOP keys with `postMessage` (see protocol.md).
 - `brainflow` warns about `pkg_resources` at import; harmless (setuptools is pinned `<81`).
 - The Cyton's USB dongle must be in GPIO6 mode (switch on the dongle) to stream.

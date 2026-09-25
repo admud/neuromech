@@ -5,8 +5,8 @@
 ## Goal
 A laptop browser page for whoever runs the demo: see what the decoder sees,
 arm and stop, drive by keyboard, tune the BCI live, check every link,
-simulate gaze when there's no headset, and show the **3D digital twin**
-(built by 1E and 1F) as the centrepiece.
+simulate gaze when there's no headset, and show the **3D virtual sim**
+(built by 1E and 1F) while we test without the physical robot.
 
 ## Stack
 Plain HTML + JS ES modules, WebSocket, `createImageBitmap`. The twin is
@@ -64,15 +64,15 @@ couple of metres away (big state indicators).
 8. **Phone URL**: show `state.hub.phone_url` large, for typing into the
    iPhone.
 
-9. **Digital twin panel**, the biggest panel, since this is the screen
-   people will look at.
-   - `<iframe src="/twin/?embed=1&mode=robot">` while the **Virtual robot**
-     switch is ON (default ON, remembered in `localStorage`). The iframe
-     itself is then the robot.
-   - Switch OFF (a real or Python robot is connected) → `?embed=1&mode=view`.
-   - A "full-screen twin" link opens `/twin/?mode=view` in a new tab.
-     Never `mode=robot`: two virtual robots would keep replacing each other
-     on `/ws/robot`.
+9. **Virtual sim panel**, a large panel.
+   - `<iframe src="/twin/?embed=1">` while the **Virtual robot** switch is
+     ON (default ON, remembered in `localStorage`). The iframe itself is then
+     the robot.
+   - Switch OFF (real robot or `robot_sim` connected) → remove the iframe
+     and show the video preview in its place.
+   - A "full screen" button calls `requestFullscreen()` on the iframe.
+     Don't open `/twin/` in a second tab while the embedded one is on: two
+     virtual robots would keep replacing each other on `/ws/robot`.
    - The iframe must stay visible (hidden tabs are throttled and the
      virtual robot would freeze), so don't put it in a collapsed tab.
    - **Keys:** when the iframe has focus, key presses go to it, not to you.
@@ -92,7 +92,7 @@ couple of metres away (big state indicators).
 - [ ] Override sends every 200 ms while held and `null` on release/blur
 - [ ] `set_config` sends only changed fields; UI reflects the hub's accepted values
 - [ ] Sim gaze controls appear only in sim mode
-- [ ] Twin iframe embedded; the Virtual robot switch flips it between `mode=robot` and `mode=view`
+- [ ] Sim iframe embedded; the Virtual robot switch adds/removes it; full-screen button works
 - [ ] Works in `?demo=1` and against `python -m hub --stub`
 - [ ] Handoff notes filled in, committed, @main tagged
 

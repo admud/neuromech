@@ -1,6 +1,6 @@
 # Phase 2: integration, end-to-end test, runbook
 
-**Agent:** opus3 (after finishing 1B) · **Runs:** after 1A–1F have all handed off and fable's reviews are fixed
+**Agent:** opus3 (after finishing 1B) · **Runs:** after 1A–1F have all handed off and @main's reviews are fixed
 
 ## Goal
 Turn six independently built pieces into one working system, prove the
@@ -36,9 +36,9 @@ real-hardware test (headset + iPhone). You now own **every file**; keep
    | 9 | Change freqs on dashboard | Phone flicker changes; decoder follows; sim gaze still decodes |
    | 10 | `--device synthetic` | Runs; no false driving beyond margin noise |
    | 11 | `--device cyton` with no dongle | Clear error listing ports; no prompt, no hang |
-   | 12 | Drive the virtual robot into a wall; through the gates | Stops and slides at walls, `collision` in telemetry; gates light and the lap timer runs |
+   | 12 | Drive the virtual robot into a wall | Stops and slides at walls, `collision` in telemetry; wheels spin the right way for each direction |
    | 13 | Esc / Space while the twin iframe has focus | STOP still works |
-   | 14 | Full-screen twin tab (`mode=view`) next to the dashboard | Follows the robot smoothly; no fight over `/ws/robot` |
+   | 14 | Virtual robot switch OFF with `robot_sim` running; full-screen button with it ON | Only one robot on `/ws/robot` at a time; full screen keeps the sim running |
 
 3. **Measure and record** in the runbook: phone fps and p95 with video on
    (desktop browser, plus iPhone if available); video glass-to-glass latency

@@ -100,7 +100,7 @@ client + OpenCV.
      quality ~70.
    - **`test` video:** a simple generated frame with a HUD showing `vx`/`vy`,
      `seq`, watchdog state and a **wall clock with milliseconds**, for
-     reading off glass-to-glass latency. Keep it simple: the 3D twin (1E) is
+     reading off glass-to-glass latency. Keep it simple: the 3D sim (1E) is
      the pretty simulator. **`webcam` video:** camera frames with the same HUD.
    - Integrates pose (`x`, `y`) from `cmd`s at `max_speed` 0.5 m/s and sends
      `telemetry` at 10 Hz with pose. Replies `pong` to `ping`.

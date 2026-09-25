@@ -4,10 +4,10 @@
 
 ## Goal
 A three.js model of **our actual robot**, built in code from primitives:
-no modelling software, no downloaded assets. The twin (1E) uses it for the
-virtual robot now and for the digital twin of the real robot later, so it
-should be recognisably *this* robot when projected on a screen, and its
-wheels should turn the way real mecanum wheels do.
+no modelling software, no downloaded assets. The virtual sim (1E) uses it as
+the virtual robot for testing before the physical robot is ready. It should
+be recognisably *this* robot, and its wheels should turn the way real
+mecanum wheels do.
 
 This is a narrow, spatial-reasoning task with small input: one photo, the
 contract below, and a handful of measurements. Keep your reading to that;

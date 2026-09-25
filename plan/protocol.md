@@ -23,7 +23,7 @@ One hub process on the PC serves everything on one port.
 | `GET /` | HTTP | anyone | redirect to `/phone/` |
 | `GET /phone/` | static | iPhone Safari | `web/phone/` |
 | `GET /dashboard/` | static | laptop browser | `web/dashboard/` |
-| `GET /twin/` | static | laptop browser, or iframe in the dashboard | `web/twin/` (3D digital twin / virtual robot) |
+| `GET /twin/` | static | laptop browser, or iframe in the dashboard | `web/twin/` (3D virtual sim, the virtual robot) |
 | `GET /api/health` | HTTP | anyone | `{"ok": true}` |
 | `WS /ws/phone` | JSON text | phone page | see [Phone](#phone--wsphone) |
 | `WS /ws/dashboard` | JSON text | dashboard page; twin page (read-only, never sends) | see [Dashboard](#dashboard--wsdashboard) |
@@ -121,7 +121,7 @@ median interval.
 
 Only one robot at a time. A new connection replaces (closes) the old one.
 Three implementations speak this, and the hub can't tell them apart except
-by `hello.name`: the 3D twin's virtual robot (`"virtual"`), the headless
+by `hello.name`: the 3D sim's virtual robot (`"virtual"`), the headless
 Python sim (`"sim"`), and later the Raspberry Pi (`"rpi"`).
 
 Robot → hub:
@@ -129,7 +129,7 @@ Robot → hub:
 | kind | body |
 |---|---|
 | text `hello` | `{"type": "hello", "client": "robot", "name": "virtual"\|"sim"\|"rpi", "video": {"w": 640, "h": 480, "fps": 20}}` |
-| text `telemetry` | 2–20 Hz (10 Hz recommended): `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null, "x": 1.2, "y": -0.4, "heading": 0.0, "collision": false}`. Pose fields optional but needed for the twin to follow: `x`, `y` in metres in the world frame, `heading` in radians. |
+| text `telemetry` | 2–20 Hz (10 Hz recommended): `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null, "x": 1.2, "y": -0.4, "heading": 0.0, "collision": false}`. Pose fields are optional (the virtual robot and `robot_sim` send them): `x`, `y` in metres in the world frame, `heading` in radians. |
 | text `pong` | `{"type": "pong", "t_hub": 1234.5}` (echo of `ping`) |
 | binary | one complete JPEG frame per message. Target 640x480, quality ~70, <= 20 fps |
 
@@ -149,9 +149,8 @@ arrives within `ttl_ms` of the last one, stop the motors and report
 - Metres. x forward (from the spawn heading), y left, z up. `heading` is
   yaw, counter-clockwise from +x. Robot `cmd` velocities are in the
   **robot** frame. With no rotation, heading stays at the spawn heading.
-- The virtual world lives in `web/twin/worlds/default.json` (owner: 1E).
-  Phase 3 also loads it in the hub (virtual-wall geofence), so keep this
-  shape:
+- The virtual world lives in `web/twin/worlds/default.json` (owner: 1E),
+  in this shape:
 
 ```json
 {"name": "default",
@@ -159,18 +158,17 @@ arrives within `ttl_ms` of the last one, stop the motors and report
  "spawn": {"x": -2.5, "y": 0.0, "heading": 0.0},
  "robot": {"radius": 0.15, "max_speed_mps": 0.5,
            "camera": {"height_m": 0.25, "pitch_deg": -10, "hfov_deg": 70, "w": 640, "h": 480}},
- "walls": [{"x": 0.0, "y": 1.0, "w": 2.0, "d": 0.1, "h": 0.4, "yaw_deg": 0}],
- "gates": [{"x": 1.5, "y": 0.0, "yaw_deg": 90, "width": 0.8}]}
+ "walls": [{"x": 0.0, "y": 1.0, "w": 2.0, "d": 0.1, "h": 0.4, "yaw_deg": 0}]}
 ```
-Box and gate positions are their centres. `w` runs along the box's local
+Box positions are their centres. `w` runs along the box's local
 x, `d` along its local y. `robot.camera` is the source of truth for the FPV
 camera. The robot's physical dimensions come from the 3D model's `dims`
 (`web/twin/robot_model.js`, 1F); `robot.radius` is only a fallback.
 
-## Browser-to-browser: twin iframe → dashboard
+## Browser-to-browser: sim iframe → dashboard
 
-When the dashboard embeds the twin in an iframe, key presses inside the
-iframe don't reach the dashboard. The twin forwards Esc, Space, arrows,
+When the dashboard embeds the sim in an iframe, key presses inside the
+iframe don't reach the dashboard. The sim forwards Esc, Space, arrows,
 WASD, 1–4 and 0:
 ```js
 window.parent.postMessage({type: "twin-key", event: "keydown" | "keyup", key: "Escape"}, "*")

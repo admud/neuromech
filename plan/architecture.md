@@ -20,9 +20,10 @@ Everything goes through the PC hub. The phone and the robot never talk to
 each other.
 
 Until the physical robot is ready, the **robot is virtual**: a 3D
-simulation in the laptop browser (the digital twin) receives the commands,
-drives through a virtual arena, and streams its first-person camera as the
-video the operator sees on the iPhone. The rest of the loop is identical.
+simulation in the laptop browser receives the commands, drives through a
+virtual arena, and streams its first-person camera as the video the operator
+sees on the iPhone. The rest of the loop is identical. The sim is only for
+testing before the robot exists; there's no AR overlay.
 
 ## Hardware
 
@@ -61,19 +62,16 @@ Plain HTML/JS, no build step, served by the hub.
 Laptop browser page for whoever runs the demo: decoder scores, arm/STOP,
 keyboard drive override, live tuning (frequencies, window, margin, dwell,
 speed), link health (EEG, phone fps, robot, video), simulated gaze buttons,
-and the digital twin embedded as its centrepiece.
+and the 3D virtual sim embedded while we test without the robot.
 
-### 3D digital twin: `web/twin/`
-three.js page, standalone (full screen on a projector) or embedded in the
-dashboard.
-- **`mode=robot`: the virtual robot.** Connects to `/ws/robot` like any
-  robot. Moves an omni-wheel robot model through a virtual arena (walls,
-  obstacles, gates, collisions), renders the robot's first-person camera at
-  ~20 fps as JPEG, and streams it as the robot video. The iPhone therefore
-  shows the virtual camera view, and the whole BCI loop can be tested with
-  the headset before the physical robot exists.
-- **`mode=view`: spectator.** Renders whatever robot is connected from its
-  pose telemetry.
+### 3D virtual sim: `web/twin/`
+three.js page, embedded in the dashboard (or on its own at `/twin/`).
+- **It is the virtual robot.** It connects to `/ws/robot` like any robot,
+  moves our mecanum robot model through a virtual arena (walls, obstacles,
+  collisions), renders the robot's first-person camera at ~20 fps as JPEG,
+  and streams it as the robot video. The iPhone therefore shows the virtual
+  camera view, and the whole BCI loop can be tested with the headset before
+  the physical robot exists.
 - Shows the brain-control state in 3D: armed ring, decoded direction arrow
   filling with dwell, score bars.
 - **The robot model is built in code, no modelling software.** It's our
@@ -82,12 +80,6 @@ dashboard.
   in one table so real measurements drop in. Its wheels spin with real
   mecanum kinematics, so a strafe looks right. Tiny, offline, and it
   animates.
-- **Later (Phase 3): AR digital twin.** It follows the real robot's pose
-  (odometry + floor markers), and its virtual walls are drawn onto the real
-  camera feed in perspective. The camera is fixed on the robot and the floor
-  is flat, so the floor plane is known from a one-off calibration. Virtual
-  walls can also geofence the real robot. This is the "cool screen" for a
-  demo on empty flat ground.
 
 ## Key design decisions
 
@@ -106,7 +98,7 @@ dashboard.
    already is in `ssvep_bci.py`.
 4. **Look away = stop.** No confident winner means zero velocity. No 5th
    target.
-5. **One robot protocol, three robots.** The virtual robot (twin), the
+5. **One robot protocol, three robots.** The virtual robot (3D sim), the
    headless Python sim and the RPi all speak `/ws/robot` identically, so
    switching from virtual to real changes nothing upstream.
 6. **Robot never moves unless armed**, and loses its arming on any link
@@ -161,5 +153,5 @@ and dwell can be tuned live from the dashboard.
 | Demo | 2026-09-26 |
 | Testing | The decoder already works with the headset; no separate phone-SSVEP gate. Test everything together at the end. |
 | 3D robot model | Built in code from the robot photo (astra); no modelling software; measurements replace estimates later |
-| Reviews | fable only reviews code; opus agents build |
-| 3D sim / digital twin | Dashboard shows a 3D virtual environment with the robot; usable standalone with the BCI (virtual camera feed on the phone) while the robot is built; later AR-overlaid on the real camera feed as a digital twin |
+| Reviews | @main reviews each track at handoff; fable only for advice on a problem @main can't solve |
+| 3D sim | Dashboard shows a 3D virtual environment with the robot; its virtual camera feed goes to the phone so the BCI loop can be tested before the robot exists. Testing only: **AR overlay dropped** (2026-09-25) |
