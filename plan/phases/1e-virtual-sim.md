@@ -122,7 +122,7 @@ CDN** (the venue may be offline).
 - `index.html` (import map, HUD markup) · `twin.js` (main: scene, robot, cameras, loop, keys) ·
   `net.js` (`RobotLink` on `/ws/robot` with the watchdog, read-only `DashLink` on `/ws/dashboard`) ·
   `physics.js` (circle vs oriented boxes, slides along walls) · `world.js` (arena from the world file) ·
-  `fpv.js` (robot camera → JPEG → `/ws/robot`) · `hud.js` (3D ring/arrow + HTML overlay) ·
+  `fpv.js` (robot camera → JPEG → `/ws/robot`) · `fpv_worker.js` (JPEG encoder) · `hud.js` (3D ring/arrow + HTML overlay) ·
   `placeholder_robot.js` (used only if `robot_model.js` fails to import) · `style.css` · `worlds/default.json` ·
   `vendor/three/` (three r186: `three.module.js`, `three.core.js`, `addons/controls/OrbitControls.js`, LICENSE).
 
@@ -140,8 +140,16 @@ CDN** (the venue may be offline).
   deltas (capped at 0.1 s). No `cmd` for `ttl_ms` (or socket down) → zero, `watchdog_stopped: true`.
 - Telemetry at 10 Hz from a timer: `vx, vy, watchdog_stopped, battery_v:null, x, y, heading, collision`,
   plus optional `sim_hidden` (true while the tab is hidden, i.e. physics paused). Pong on ping.
-- FPV: 640x480, hfov 70 → vfov computed, pitch from `cameraMount`, own WebGLRenderer, 20 fps, JPEG q0.7
-  (~10–12 kB). Never queues: skips the frame while an encode is in flight or `ws.bufferedAmount > 0`.
+- FPV: 640x480, hfov 70 → vfov computed, pitch from `cameraMount`, ≤ 20 fps, JPEG q0.7 (~10–12 kB).
+  Pipeline (after @main found only 4–5 fps under load): render into a 4x MSAA render target on the
+  **main** renderer (one GL context), async PBO readback (`readRenderTargetPixelsAsync`), then
+  `fpv_worker.js` flips rows, applies the sRGB curve (render targets are linear) and encodes on a
+  CPU-only `OffscreenCanvas` (`willReadFrequently`; a GPU-backed one queued behind the 3D view).
+  Up to 3 frames in flight (readback is latency-bound, ~100–150 ms under load). A due slot that finds
+  the pipeline or socket busy goes out on the next free rAF. Never queues: a frame that finishes older
+  than one already sent, or finds `ws.bufferedAmount > 0`, is dropped. The PiP shows the encoded frames.
+- Main view capped at 60 fps (spare GPU goes to the FPV); shadows PCF 1024.
+- After updating `web/twin/` files, hard-reload (Ctrl+F5): Chrome may serve cached modules.
 - HUD marks (ring, dwell arrow) and the trail are on layer 1, which the FPV camera doesn't render,
   so none of it reaches the phone's video.
 - Ring: green armed, red disarmed, grey no hub state. Arrow on the floor in the command direction:
@@ -168,6 +176,12 @@ Don't minimise the dashboard window or switch its tab during a run.
   gets 20.0 fps valid JPEGs through the relay; disarm on `phone_lost` shown.
 - Iframe: all forwarded keys arrive in the parent, `C` stays, others ignored. Second tab takes over cleanly.
 - Main view ~117 fps while streaming. Placeholder model smoke-tested.
+- FPV fix, retested with another agent's dashboard+phone set running on the same GPU: sim alone
+  18–20 fps into the hub; dashboard (sim embedded) + phone page open: hub `video.in_fps` 11–19 (mostly 16–19).
+  @main's `integration.mjs` (on other ports): 20/20 pass, `in_fps` 19, phone 17 frames/s.
+  FPV JPEG checked by eye: upright, correct colours, matches the main view.
+  (The headless phone page decodes fewer frames than the hub receives when the GPU is contended; the
+  real iPhone decodes on its own hardware.)
 
 **Not done / notes**
 - Not yet seen on the iPhone itself, nor with 1B's `--device sim` sim gaze (both are Phase 2).

@@ -56,7 +56,7 @@ async function main() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1d2127);
@@ -65,7 +65,7 @@ async function main() {
   const [sx, sy] = world.arena.size;
   sun.position.set(-2, -3, 6);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);   // cheap: the GPU is shared with the FPV render
   const ext = Math.max(sx, sy) / 2 + 0.5;
   Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 15 });
   sun.shadow.bias = -0.0005;
@@ -116,7 +116,7 @@ async function main() {
   pushTrail(pose.x, pose.y);
 
   // --- FPV camera = the video feed ----------------------------------------
-  const fpv = new FpvCamera({ scene, robotGroup: poseGroup, cam: camCfg, mount: model.cameraMount });
+  const fpv = new FpvCamera({ renderer, scene, robotGroup: poseGroup, cam: camCfg, mount: model.cameraMount });
   const pip = document.getElementById("pip");
   pip.appendChild(fpv.canvas);
 
@@ -265,7 +265,8 @@ async function main() {
   // --- main loop ----------------------------------------------------------
   let last = performance.now();
   let hudAt = 0, lastState = null, lastCollision = false;
-  let fpsN = 0, fpsT0 = last, mainFps = 0;
+  let fpsN = 0, fpsT0 = last, mainFps = 0, mainAt = -Infinity;
+  const MAIN_PERIOD_MS = 1000 / 60;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(MAX_DT, Math.max(0, (now - last) / 1000));
@@ -289,12 +290,17 @@ async function main() {
     }
 
     if (camMode !== "top") placeCamera(camMode === "chase" ? 1 - Math.exp(-dt * 6) : 1);
-    renderer.render(scene, camera);
+    // Main view capped at 60 fps: on a 120/144 Hz display rAF runs faster,
+    // and the spare GPU time is better spent on the FPV feed.
+    if (now - mainAt >= MAIN_PERIOD_MS - 2) {
+      mainAt = now - mainAt < 2 * MAIN_PERIOD_MS ? mainAt + MAIN_PERIOD_MS : now;
+      renderer.render(scene, camera);
+      fpsN++;
+    }
 
     if (!VIEW_ONLY) fpv.tick(now, () => robot.canSendFrame(), (buf) => robot.sendFrame(buf));
     else fpv.tick(now, () => false, () => false);
 
-    fpsN++;
     if (now - fpsT0 >= 1000) { mainFps = (fpsN * 1000) / (now - fpsT0); fpsN = 0; fpsT0 = now; }
     if (now - hudAt > 100) {
       hudAt = now;
