@@ -65,11 +65,12 @@ export function mecanumWheelSpeeds(vx, vy, wz, dims) -> {fl, fr, rl, rr}
 2. **Mecanum wheels**
    - Yellow hub, plus rollers as instanced capsules around the rim with
      their axes at **45°** to the wheel axis.
-   - Roller handedness must match `mecanumWheelSpeeds`: the
-     **ground-contact** rollers of FL and RR run along the forward-left
-     diagonal, and those of FR and RL along the forward-right diagonal. Seen
-     from above, the top rollers then make a diamond ("O") pattern. The
-     behaviour in the acceptance list is the real test.
+   - Roller handedness must match `mecanumWheelSpeeds` (the mixer is
+     fixed). The no-slip constraint is `(vx - r·ω, vy) · rollerAxis = 0`,
+     so the **ground-contact roller axes** of FL and RR run along the x−y
+     diagonal (forward-right) and those of FR and RL along x+y
+     (forward-left). Seen from above, the top rollers then make an **X**.
+     The behaviour in the acceptance list is the real test.
    - Wheels spin in `update()` from the given rad/s.
    - Motors: simple cylinders under the bottom deck.
 3. **Electronics**
