@@ -1,5 +1,6 @@
 """Live electrode-contact dashboard for the OpenBCI Cyton.
 
+    python contact_viz.py              # finds the OpenBCI dongle's COM port
     python contact_viz.py --port COM11
 
 Three views, updating ~10x/second while you adjust the headset:
@@ -69,7 +70,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--device", default="cyton")
-    ap.add_argument("--port", default="COM11")
+    ap.add_argument("--port", default=None,
+                    help="dongle COM port; default auto-detects the OpenBCI dongle")
     ap.add_argument("--seconds", type=float, default=5.0, help="trace window length")
     ap.add_argument("--mains", type=float, default=None,
                     help="mains frequency; default auto-detects 50 vs 60 Hz")
@@ -78,6 +80,17 @@ def main():
                          "opening the live dashboard")
     args = ap.parse_args()
 
+    if args.device == "cyton" and args.port is None:
+        # Never let eegnb see serial_port=None: it would prompt with input().
+        # The hub's detector lives in the repo root package `hub`.
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+        from hub.bci.board import BoardError, find_openbci_port
+        try:
+            args.port = find_openbci_port()
+        except BoardError as exc:
+            sys.exit(str(exc))
+        print("OpenBCI dongle on %s" % args.port)
     print("Connecting to %s ..." % args.device)
     eeg = (EEG(device="synthetic") if args.device == "synthetic"
            else EEG(device=args.device, serial_port=args.port))
