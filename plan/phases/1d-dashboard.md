@@ -87,14 +87,80 @@ couple of metres away (big state indicators).
     before the hub exists. Then test against sol's `python -m hub --stub`.
 
 ## Acceptance
-- [ ] Every `state` field in protocol.md that matters to an operator is visible
-- [ ] STOP works via button, Esc, and Space (outside inputs), including while the twin iframe has focus
-- [ ] Override sends every 200 ms while held and `null` on release/blur
-- [ ] `set_config` sends only changed fields; UI reflects the hub's accepted values
-- [ ] Sim gaze controls appear only in sim mode
-- [ ] Sim iframe embedded; the Virtual robot switch adds/removes it; full-screen button works
-- [ ] Works in `?demo=1` and against `python -m hub --stub`
-- [ ] Handoff notes filled in, committed, @main tagged
+- [x] Every `state` field in protocol.md that matters to an operator is visible
+- [x] STOP works via button, Esc, and Space (outside inputs), including while the twin iframe has focus
+- [x] Override sends every 200 ms while held and `null` on release/blur
+- [x] `set_config` sends only changed fields; UI reflects the hub's accepted values
+- [x] Sim gaze controls appear only in sim mode
+- [x] Sim iframe embedded; the Virtual robot switch adds/removes it; full-screen button works
+- [x] Works in `?demo=1` and against `python -m hub --stub`
+- [x] Handoff notes filled in, committed, @main tagged
 
 ## Handoff notes
-_(fill in when done)_
+
+**What exists** (`web/dashboard/`):
+- `index.html`, `style.css`, and `dashboard.js` (all the logic).
+- `demo.js`: a fake hub for `?demo=1` that behaves like the stub engine.
+  It records every message it receives in `__dash.hub.log`, for tests.
+- Reuses `../phone/net.js` (reconnecting WS), `../phone/video.js` (newest-frame
+  video) and `../phone/demo.js` (test pattern). opus owns both directories.
+- Safety header:
+  - big ARMED/DISARMED with the disarm reason in words;
+  - ARM (disabled while armed or with no hub) and a large STOP;
+  - the current command (arrow, vx/vy, source);
+  - the phone URL in large type;
+  - hub dot + RTT, and a DISCONNECTED banner.
+- Panels:
+  - decoder: score bars labelled with frequency, winner highlighted, dwell
+    pips, decode_ms, warnings;
+  - drive: D-pad, current override, "not armed" note;
+  - sim gaze: only when `state.sim` is set;
+  - tuning;
+  - links: EEG with per-channel quality, phone fps in red below 100, robot
+    with telemetry, pose, collision and WATCHDOG STOP, video;
+  - video preview.
+- **Key handling:** holds are tracked per source (`k:` local keys, `t:` keys
+  from the twin, `pad` D-pad), and the newest hold wins.
+  - Twin holds expire 800 ms after their last keydown. Key-repeat refreshes
+    them, so a keyup lost when the iframe loses focus can't leave the robot
+    driving.
+  - Window blur releases local and pad holds.
+  - Buttons blur themselves after a click, so Space/Enter can never re-press ARM.
+- Tuning:
+  - Fields the user has edited turn yellow ("dirty") and aren't overwritten
+    by incoming state.
+  - Apply sends only the fields that differ from the hub's values.
+  - The status reads "applied: ..." once the next `config`/`state` matches,
+    or "not accepted: X (hub keeps Y)" after 1.5 s.
+- The Virtual robot switch (default ON) is stored in `localStorage`
+  (`neuromech.virtualRobot`).
+  - OFF removes the iframe and moves the video canvas into the big panel.
+  - ON puts the iframe back and the video returns to the small side panel.
+
+**Tested** (Chrome over CDP with real key and mouse input):
+- `?demo=1`:
+  - ARM click arms; Esc and Space STOP; Space inside a number field doesn't.
+  - ArrowUp held 1.1 s: overrides at 0, 70, 267, 468 ... 1067 ms, then
+    `null` at release.
+  - Blur sends `null`.
+  - A forwarded twin arrow with no keyup expires: `null` at ~900 ms.
+  - Tuning: margin + up freq sent as `{"margin":0.08,"freqs":{"up":12.5}}`,
+    shown as applied. 50 Hz is rejected ("hub keeps 14") and the field
+    reverts.
+  - Key 1 sets the gaze.
+  - The virtual switch removes/restores the iframe and remembers the setting.
+- `python -m hub --stub` with the real `/twin/?embed=1` iframe:
+  - it connects as robot `virtual`;
+  - ArrowUp pressed *inside the iframe* drives it (override up, robot x
+    advancing);
+  - Space and Esc inside the iframe STOP it;
+  - the STOP button works;
+  - the full-screen button makes the iframe `document.fullscreenElement`.
+- `python -m hub --device synthetic` (opus3's engine): `sim` is null, so the
+  gaze panel is hidden. EEG quality rows render.
+
+**Known limits:**
+- While the iframe is full screen, Esc is taken by the browser to exit full
+  screen and never reaches the page. Space still STOPs from full screen.
+- Phone rtt shows "–" until `hub/server.py` copies the phone's
+  `frame_stats.rtt_ms` into `state.phone.rtt_ms` (sol).
