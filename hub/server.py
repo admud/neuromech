@@ -217,7 +217,7 @@ def create_app(engine, http_port=8765):
         old = robot["peer"]
         if old is not None:
             with suppress(Exception):
-                await asyncio.wait_for(old.ws.close(), timeout=0.08)
+                await asyncio.wait_for(old.ws.close(code=4001, reason="replaced"), timeout=0.08)
         robot.update(peer=peer, name=None, telemetry={}, rtt_ms=None, ping_at=None)
         engine.set_robot_connected(True)
         sender = asyncio.create_task(robot_send(peer))

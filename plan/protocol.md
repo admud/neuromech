@@ -119,7 +119,9 @@ median interval.
 
 ## Robot ⇄ hub (`/ws/robot`)
 
-Only one robot at a time. A new connection replaces (closes) the old one.
+Only one robot at a time. A new connection replaces the old one, which is
+closed with code 4001, reason `"replaced"` (the 3D sim then stops
+reconnecting; `robot_sim` and the RPi keep retrying).
 Three implementations speak this, and the hub can't tell them apart except
 by `hello.name`: the 3D sim's virtual robot (`"virtual"`), the headless
 Python sim (`"sim"`), and later the Raspberry Pi (`"rpi"`).
