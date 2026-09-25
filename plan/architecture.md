@@ -19,6 +19,11 @@ picks up, the PC decodes, and the robot turns into motion.
 Everything goes through the PC hub. The phone and the robot never talk to
 each other.
 
+Until the physical robot is ready, the **robot is virtual**: a 3D
+simulation in the laptop browser (the digital twin) receives the commands,
+drives through a virtual arena, and streams its first-person camera as the
+video the operator sees on the iPhone. The rest of the loop is identical.
+
 ## Hardware
 
 | Part | Details |
@@ -42,8 +47,8 @@ each other.
   and sends each viewer the newest frame when it's ready for one. Stale frames
   are dropped, never queued, so latency can't build up.
 - **Simulators** (`hub/sim/`): an SSVEP board that fakes a user looking at a
-  chosen target, and a robot client that behaves exactly like the RPi will
-  (and becomes the template for it).
+  chosen target (so no headset is needed), and a headless robot client that
+  behaves exactly like the RPi will (the template for it, and for tests).
 
 ### Phone page: `web/phone/`
 Plain HTML/JS, no build step, served by the hub.
@@ -55,7 +60,28 @@ Plain HTML/JS, no build step, served by the hub.
 ### Operator dashboard: `web/dashboard/`
 Laptop browser page for whoever runs the demo: decoder scores, arm/STOP,
 keyboard drive override, live tuning (frequencies, window, margin, dwell,
-speed), link health (EEG, phone fps, robot, video), simulated gaze buttons.
+speed), link health (EEG, phone fps, robot, video), simulated gaze buttons,
+and the digital twin embedded as its centrepiece.
+
+### 3D digital twin: `web/twin/`
+three.js page, standalone (full screen on a projector) or embedded in the
+dashboard.
+- **`mode=robot`: the virtual robot.** Connects to `/ws/robot` like any
+  robot. Moves an omni-wheel robot model through a virtual arena (walls,
+  obstacles, gates, collisions), renders the robot's first-person camera at
+  ~20 fps as JPEG, and streams it as the robot video. The iPhone therefore
+  shows the virtual camera view, and the whole BCI loop can be tested with
+  the headset before the physical robot exists.
+- **`mode=view`: spectator.** Renders whatever robot is connected from its
+  pose telemetry.
+- Shows the brain-control state in 3D: armed ring, decoded direction arrow
+  filling with dwell, score bars.
+- **Later (Phase 3): AR digital twin.** It follows the real robot's pose
+  (odometry + floor markers), and its virtual walls are drawn onto the real
+  camera feed in perspective. The camera is fixed on the robot and the floor
+  is flat, so the floor plane is known from a one-off calibration. Virtual
+  walls can also geofence the real robot. This is the "cool screen" for a
+  demo on empty flat ground.
 
 ## Key design decisions
 
@@ -74,9 +100,12 @@ speed), link health (EEG, phone fps, robot, video), simulated gaze buttons.
    already is in `ssvep_bci.py`.
 4. **Look away = stop.** No confident winner means zero velocity. No 5th
    target.
-5. **Robot never moves unless armed**, and loses its arming on any link
+5. **One robot protocol, three robots.** The virtual robot (twin), the
+   headless Python sim and the RPi all speak `/ws/robot` identically, so
+   switching from virtual to real changes nothing upstream.
+6. **Robot never moves unless armed**, and loses its arming on any link
    failure. The robot has its own 500 ms watchdog on top of that.
-6. **One port, WebSockets everywhere.** Simple to firewall, works from Safari
+7. **One port, WebSockets everywhere.** Simple to firewall, works from Safari
    over plain HTTP.
 
 ## Threads and timing
@@ -125,3 +154,4 @@ and dwell can be tuned live from the dashboard.
 | Network | Local WiFi |
 | Demo | 2026-09-26 |
 | Testing | The decoder already works with the headset; no separate phone-SSVEP gate. Test everything together at the end. |
+| 3D sim / digital twin | Dashboard shows a 3D virtual environment with the robot; usable standalone with the BCI (virtual camera feed on the phone) while the robot is built; later AR-overlaid on the real camera feed as a digital twin |

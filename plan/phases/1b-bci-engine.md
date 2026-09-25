@@ -1,12 +1,17 @@
 # Phase 1B: BCI engine and arbiter
 
-**Agent:** opus · **Runs:** Phase 1, in parallel with 1A, 1C–1E
+**Agent:** opus3 · **Runs:** Phase 1, in parallel with 1A, 1C–1E
 
 ## Goal
 Everything between the headset and the velocity command: open the board
 (auto-detecting the dongle), run the existing decoder, and turn its output
 into a safe `vx`/`vy` command with arming, dwell and auto-disarm. Exposed to
-the server as `BciEngine`.
+the server as `BciEngine`. Also the SSVEP board simulator, so the whole loop
+runs without a headset.
+
+## Stack
+Python 3.10, numpy/scipy, brainflow via eegnb, pyserial (port auto-detect),
+the existing `control/ssvep_bci.Decoder`.
 
 ## Read first
 - [../protocol.md](../protocol.md): `EngineSettings`, `BciEngine`,
@@ -18,8 +23,9 @@ the server as `BciEngine`.
 
 ## You own
 `hub/bci/__init__.py`, `hub/bci/config.py`, `hub/bci/board.py`,
-`hub/bci/arbiter.py`, `hub/bci/engine.py`, `hub/tests/test_arbiter.py`,
-`hub/tests/test_engine.py`
+`hub/bci/arbiter.py`, `hub/bci/engine.py`, `hub/sim/sim_board.py`,
+`hub/tests/test_arbiter.py`, `hub/tests/test_engine.py`,
+`hub/tests/test_sim_board.py`
 
 ## Build
 
@@ -45,8 +51,7 @@ the server as `BciEngine`.
        asks for the port with `input()` and hangs the hub. `EEG()` already
        calls `prepare_session`; you call `board.start_stream()`.
      - `synthetic`: `EEG(device="synthetic")`.
-     - `sim`: `hub.sim.sim_board.SimSSVEPBoard(freqs)` (Phase 1E; import
-       lazily). Until it lands, use a tiny fake in your tests.
+     - `sim`: `hub.sim.sim_board.SimSSVEPBoard(freqs)` (step 6).
      - Channel picking as in `ssvep_bci.main()`: prefer O1, O2, P7, P8;
        fall back to the first four.
 
@@ -91,21 +96,45 @@ the server as `BciEngine`.
    - Every public method except `start`/`stop` is thread-safe and
      non-blocking: one lock, no I/O.
 
-6. **Tests**
+6. **`hub/sim/sim_board.py`: `SimSSVEPBoard`**, exactly the interface in
+   protocol.md.
+   - **Real-time:** samples are generated from the monotonic clock at `fs`
+     (250). `get_current_board_data(n)` returns the newest `n` samples as
+     `(n_rows, n)`, EEG in µV on rows 1–8, row 0 a sample counter. Keep
+     ~10 s of history. Generate from the absolute sample index so phase is
+     continuous across calls.
+   - **Signal:**
+     - background: 1/f-ish noise (~10 µV rms) + a 10 Hz alpha component +
+       small 50 Hz line noise;
+     - while gazing at target *i*: a sinusoid at `freqs[i]` plus 2nd and 3rd
+       harmonics, strongest on O1/O2, weaker on P7/P8, faint elsewhere
+       (Cyton order: Fp1 Fp2 C3 C4 P7 P8 O1 O2), amplitude scaled by `snr`.
+   - Gaze changes take effect at the moment they're made. The decoder's
+     window then holds a realistic mix, so the latency is realistic.
+   - Thread-safe: the decoder thread reads while the engine calls `set_gaze`/`set_freqs`.
+   - Tune the default `snr` so it's realistic but reliable (see tests).
+
+7. **Tests**
    - `test_arbiter.py`: dwell activation; immediate release on None and on
      a different winner; override precedence and 500 ms expiry; disarmed →
      zero; direction→velocity signs.
    - `test_engine.py`: `synthetic` start/stop and `status()` shape; `handle`
-     return values and validation; auto-disarm on phone loss; with 1E's sim
-     board once it lands: armed + `sim_gaze: "left"` → `command()` shows
-     `left`, `vy > 0` within ~5 s, and gaze None → zero soon after.
+     return values and validation; auto-disarm on phone loss; `sim` device:
+     armed + `sim_gaze: "left"` → `command()` shows `left`, `vy > 0` within
+     ~5 s, and gaze None → zero soon after.
+   - `test_sim_board.py`: feed `SimSSVEPBoard` to the real `Decoder`
+     (window 3 s, margin 0.06). After 3 s of gaze at each target, the winner
+     equals that target in >= 90% of decodes. With gaze None the winner is
+     None in >= 80% of decodes. Frequency changes are respected. Keep it
+     under ~60 s.
 
 ## Acceptance
 - [ ] `BciEngine` matches protocol.md exactly, so 1A can swap out `StubEngine` without changes
 - [ ] `--device cyton` without a dongle fails fast with a clear message (no `input()` prompt)
 - [ ] Sim gaze drives the right direction with the right velocity signs; look-away stops
 - [ ] All safety rules in protocol.md covered by tests
-- [ ] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_arbiter.py hub/tests/test_engine.py` passes
+- [ ] `SimSSVEPBoard` meets the decoding accuracy targets with its default `snr`
+- [ ] `control/.venv/Scripts/python.exe -m pytest hub/tests/test_arbiter.py hub/tests/test_engine.py hub/tests/test_sim_board.py` passes
 - [ ] Handoff notes filled in, committed, @main tagged
 
 ## Handoff notes

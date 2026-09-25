@@ -1,12 +1,19 @@
 # Phase 1C: phone page
 
-**Agent:** fable · **Runs:** Phase 1, in parallel with 1A, 1B, 1D, 1E
+**Agent:** opus · **Runs:** Phase 1, in parallel with 1A, 1B, 1D, 1E
 
 ## Goal
 The page the operator holds: live robot video in the middle, four SSVEP
 flicker targets around it, each at its own frequency, with rock-steady timing
 at the iPhone 17's 120 Hz. This is the stimulus the whole BCI depends on. If
 the flicker timing is wrong, nothing downstream can fix it.
+
+## Stack
+Plain HTML + JS ES modules, Canvas 2D or WebGL, WebSocket, `createImageBitmap`.
+Target: iOS Safari on iPhone 17.
+
+The video may be the real robot camera or the 3D twin's virtual FPV camera
+(1E). The phone doesn't care: both arrive on `/ws/video` as JPEGs.
 
 ## Read first
 - [../protocol.md](../protocol.md): `/ws/phone`, `/ws/video`, `config`, `state`, phone messages

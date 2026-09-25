@@ -23,11 +23,12 @@ One hub process on the PC serves everything on one port.
 | `GET /` | HTTP | anyone | redirect to `/phone/` |
 | `GET /phone/` | static | iPhone Safari | `web/phone/` |
 | `GET /dashboard/` | static | laptop browser | `web/dashboard/` |
+| `GET /twin/` | static | laptop browser, or iframe in the dashboard | `web/twin/` (3D digital twin / virtual robot) |
 | `GET /api/health` | HTTP | anyone | `{"ok": true}` |
 | `WS /ws/phone` | JSON text | phone page | see [Phone](#phone--wsphone) |
-| `WS /ws/dashboard` | JSON text | dashboard page | see [Dashboard](#dashboard--wsdashboard) |
+| `WS /ws/dashboard` | JSON text | dashboard page; twin page (read-only, never sends) | see [Dashboard](#dashboard--wsdashboard) |
 | `WS /ws/video` | binary | phone page, dashboard page | one JPEG per message, hub → viewer only |
-| `WS /ws/robot` | JSON text + binary | robot (sim now, RPi later) | see [Robot](#robot--wsrobot) |
+| `WS /ws/robot` | JSON text + binary | the robot: twin page in `mode=robot`, `hub.sim.robot_sim`, or the RPi | see [Robot](#robot--wsrobot) |
 
 ## Conventions
 
@@ -119,13 +120,16 @@ median interval.
 ## Robot ⇄ hub (`/ws/robot`)
 
 Only one robot at a time. A new connection replaces (closes) the old one.
+Three implementations speak this, and the hub can't tell them apart except
+by `hello.name`: the 3D twin's virtual robot (`"virtual"`), the headless
+Python sim (`"sim"`), and later the Raspberry Pi (`"rpi"`).
 
 Robot → hub:
 
 | kind | body |
 |---|---|
-| text `hello` | `{"type": "hello", "client": "robot", "name": "sim", "video": {"w": 640, "h": 480, "fps": 20}}` |
-| text `telemetry` | ~2 Hz: `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null}` plus optional extras (sim adds `x`, `y`) |
+| text `hello` | `{"type": "hello", "client": "robot", "name": "virtual"\|"sim"\|"rpi", "video": {"w": 640, "h": 480, "fps": 20}}` |
+| text `telemetry` | 2–20 Hz (10 Hz recommended): `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null, "x": 1.2, "y": -0.4, "heading": 0.0, "collision": false}`. Pose fields optional but needed for the twin to follow: `x`, `y` in metres in the world frame, `heading` in radians. |
 | text `pong` | `{"type": "pong", "t_hub": 1234.5}` (echo of `ping`) |
 | binary | one complete JPEG frame per message. Target 640x480, quality ~70, <= 20 fps |
 
@@ -139,6 +143,37 @@ Hub → robot:
 **Robot watchdog (mandatory on every robot implementation):** if no `cmd`
 arrives within `ttl_ms` of the last one, stop the motors and report
 `watchdog_stopped: true`.
+
+## World frame and world file
+
+- Metres. x forward (from the spawn heading), y left, z up. `heading` is
+  yaw, counter-clockwise from +x. Robot `cmd` velocities are in the
+  **robot** frame. With no rotation, heading stays at the spawn heading.
+- The virtual world lives in `web/twin/worlds/default.json` (owner: 1E).
+  Phase 3 also loads it in the hub (virtual-wall geofence), so keep this
+  shape:
+
+```json
+{"name": "default",
+ "arena": {"size": [6.0, 4.0]},
+ "spawn": {"x": -2.5, "y": 0.0, "heading": 0.0},
+ "robot": {"radius": 0.15, "max_speed_mps": 0.5,
+           "camera": {"height_m": 0.25, "pitch_deg": -10, "hfov_deg": 70, "w": 640, "h": 480}},
+ "walls": [{"x": 0.0, "y": 1.0, "w": 2.0, "d": 0.1, "h": 0.4, "yaw_deg": 0}],
+ "gates": [{"x": 1.5, "y": 0.0, "yaw_deg": 90, "width": 0.8}]}
+```
+Box and gate positions are their centres. `w` runs along the box's local
+x, `d` along its local y.
+
+## Browser-to-browser: twin iframe → dashboard
+
+When the dashboard embeds the twin in an iframe, key presses inside the
+iframe don't reach the dashboard. The twin forwards Esc, Space, arrows,
+WASD, 1–4 and 0:
+```js
+window.parent.postMessage({type: "twin-key", event: "keydown" | "keyup", key: "Escape"}, "*")
+```
+The dashboard treats these exactly like its own key events (Esc/Space = STOP).
 
 ## Safety model (enforced by the engine)
 
@@ -189,7 +224,7 @@ class BciEngine:
     def command(self) -> dict: ...    # {"vx", "vy", "direction", "source"}; polled at 10 Hz
 ```
 
-### `hub.sim.sim_board.SimSSVEPBoard` (owner: Phase 1E, consumer: Phase 1B)
+### `hub.sim.sim_board.SimSSVEPBoard` (owner and consumer: Phase 1B)
 Stands in for a brainflow `BoardShim` as far as `ssvep_bci.Decoder` cares.
 ```python
 class SimSSVEPBoard:
