@@ -166,13 +166,13 @@ for advice if @main hits a problem it can't solve. Focus by track:
 
 (@main updates this. Agents report in their own brief's handoff notes.)
 - 0 plan + contract: done (@main)
-- 1A hub server: in progress (sol)
-- 1B BCI engine: in progress (opus3)
+- 1A hub server: done, tested by @main (live hub, 3 s liveness timeouts, no-dongle error)
+- 1B BCI engine: done, tested by @main (47 tests, full-loop sim integration, margin sweep)
 - 1C phone page: done, tested by @main (19/19 e2e checks + reconnect)
-- 1D dashboard: in progress (opus)
-- 1E 3D virtual sim: in progress (opus2)
-- 1F robot model: in progress (astra)
-- 2 integration: blocked on 1A–1F + reviews
+- 1D dashboard: done, tested by @main (Space/Esc STOP incl. inside the sim iframe, keyboard override, sim gaze)
+- 1E 3D virtual sim: fix pending (opus2): FPV feed only 4-5 fps; everything else tested OK
+- 1F robot model: done, tested by @main in Chrome (32 draws, 15,648 tris, wheel signs, roller axes)
+- 2 integration: in progress (opus3); web/twin/ stays with opus2 until the FPV fix lands
 - 3A RPi robot: later, needs the robot
 
 ## Later, beyond Phase 3
