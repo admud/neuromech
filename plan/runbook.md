@@ -63,8 +63,9 @@ Open `http://localhost:8765/dashboard/` in Chrome, in a normal visible window.
 
 1. Join the **same WiFi** as the laptop.
 2. In Safari, open the `Phone:` URL (the dashboard's PHONE URL), e.g. `http://10.244.145.32:8765/phone/`.
-3. Optional: *Share → Add to Home Screen*, and launch from there. That hides Safari's bars. Check
-   the fps readout both ways and use whichever shows ~120.
+3. Install it: *Share → Add to Home Screen* (the start screen shows this tip), then open
+   **NeuroMech** from the Home Screen. It runs full screen as its own app. Check the fps readout
+   there and in Safari, and use whichever shows ~120.
 4. Landscape. The status line shows the **fps**. It must read **~120**. The dashboard's Links
    panel shows the same number, in red if it's below 100.
    - If it's ~60, the Feature Flag is still on, or Low Power Mode is on.
@@ -75,7 +76,8 @@ Open `http://localhost:8765/dashboard/` in Chrome, in a normal visible window.
 
 1. **Arm**: long-press **HOLD TO ARM** (bottom-left, 1 s ring) on the phone, or press ARM on the
    dashboard. Arming is refused while the EEG isn't flowing.
-2. **Look at a bar** to drive: top = forward, bottom = back, left = strafe left, right = strafe right.
+2. **Look at a circle** to drive: top = forward, bottom = back, left = strafe left, right = strafe right.
+   If one is hard to trigger, make the circles bigger with `?size=0.2` on the phone URL (default 0.16).
    - Expect the robot to start **~1.5 s** after you fix your gaze.
    - The dashboard's decoder panel shows the winner and dwell pips filling.
 3. **Look at the video** (the middle) to stop. It takes **~2.4 s** to stop: the decoder's 3 s window

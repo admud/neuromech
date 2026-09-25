@@ -1,10 +1,18 @@
 {
+  "id": "./",
   "name": "NeuroMech",
   "short_name": "NeuroMech",
+  "description": "SSVEP brain-control phone display: robot video with four flicker targets.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "landscape",
   "background_color": "#202020",
-  "theme_color": "#202020"
+  "theme_color": "#202020",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }

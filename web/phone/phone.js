@@ -2,8 +2,8 @@
 //
 // URL options:
 //   ?demo=1     no hub: fake config/state and a generated test pattern
-//   ?bar=0.18   bar thickness as a fraction of the short side
-//   ?gap=0.04   gap between bars (corners stay empty) as a fraction of the short side
+//   ?size=0.16  target circle diameter as a fraction of the short side
+//   ?gap=0.03   gap between the circles' band and the video, as a fraction of the short side
 //   ?hint=1     force the <100 fps hint (otherwise touch devices only)
 //   ?trace=1    record per-frame (t, grey levels) into window.__trace for checking
 
@@ -14,8 +14,8 @@ import { DemoPhoneLink, startTestPattern } from "./demo.js";
 
 const q = new URLSearchParams(location.search);
 const DEMO = q.get("demo") === "1";
-const BAR = clampNum(parseFloat(q.get("bar")), 0.05, 0.35, 0.18);
-const GAP = clampNum(parseFloat(q.get("gap")), 0, 0.15, 0.04);
+const SIZE = clampNum(parseFloat(q.get("size")), 0.08, 0.35, 0.16);
+const GAP = clampNum(parseFloat(q.get("gap")), 0, 0.15, 0.03);
 const TRACE = q.get("trace") === "1";
 const SHOW_HINT = q.get("hint") === "1" || navigator.maxTouchPoints > 0;
 
@@ -38,21 +38,23 @@ let videoSize = [640, 480];
 
 // ---------------------------------------------------------------- layout
 
-/** Bars on the four edges of the safe area, corners empty, video in the middle. */
+/** One circle at the middle of each edge of the safe area, video in the middle.
+ *  b = circle diameter = the edge band's thickness; the corners hold the buttons. */
 function computeLayout(vw, vh, inset) {
   const x0 = inset.l, y0 = inset.t;
   const W = vw - inset.l - inset.r, H = vh - inset.t - inset.b;
   const s = Math.min(W, H);
-  const b = Math.round(BAR * s), g = Math.round(GAP * s);
+  const b = Math.round(SIZE * s), g = Math.round(GAP * s);
   const c = b + g;  // corner square size
   const centre = { x: x0 + c, y: y0 + c, w: W - 2 * c, h: H - 2 * c };
+  const r = b / 2, mx = x0 + W / 2, my = y0 + H / 2;
   return {
     x0, y0, W, H, b, g, c, centre,
-    bars: {
-      up:    { x: centre.x, y: y0,         w: centre.w, h: b },
-      down:  { x: centre.x, y: y0 + H - b, w: centre.w, h: b },
-      left:  { x: x0,         y: centre.y, w: b, h: centre.h },
-      right: { x: x0 + W - b, y: centre.y, w: b, h: centre.h },
+    targets: {
+      up:    { cx: mx,             cy: y0 + r,     r },
+      down:  { cx: mx,             cy: y0 + H - r, r },
+      left:  { cx: x0 + r,         cy: my,         r },
+      right: { cx: x0 + W - r,     cy: my,         r },
     },
   };
 }
@@ -73,12 +75,12 @@ function relayout() {
   const dpr = window.devicePixelRatio || 1;
   layout = computeLayout(vw, vh, safeInsets());
 
-  const bars = {};
+  const circles = {};
   for (const id of TARGET_IDS) {
-    const r = layout.bars[id];
-    bars[id] = { x: r.x * dpr, y: r.y * dpr, w: r.w * dpr, h: r.h * dpr };
+    const t = layout.targets[id];
+    circles[id] = { cx: t.cx * dpr, cy: t.cy * dpr, r: t.r * dpr };
   }
-  flicker.resize(Math.round(vw * dpr), Math.round(vh * dpr), bars);
+  flicker.resize(Math.round(vw * dpr), Math.round(vh * dpr), circles);
 
   placeVideo();
 
@@ -233,9 +235,11 @@ function applyState() {
   if (winner !== lastWinner && layout) {
     lastWinner = winner;
     if (winner) {
-      const r = layout.bars[winner];
+      // A ring in the gap around the circle, never over the flickering area.
+      const t = layout.targets[winner];
       const pad = Math.max(3, Math.round(layout.g * 0.45));
-      place(el.outline, { x: r.x - pad, y: r.y - pad, w: r.w + 2 * pad, h: r.h + 2 * pad });
+      const R = t.r + pad;
+      place(el.outline, { x: t.cx - R, y: t.cy - R, w: 2 * R, h: 2 * R });
       el.outline.style.borderWidth = Math.max(3, Math.round(pad * 0.7)) + "px";
       el.outline.style.display = "block";
     } else {
@@ -329,6 +333,20 @@ for (const ev of ["gesturestart", "gesturechange", "dblclick", "contextmenu"]) {
   document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 }
 document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+
+// ---------------------------------------------------------------- PWA
+
+// Service workers only exist in secure contexts (HTTPS or localhost). Over
+// plain http the page still installs on iPhone via Share -> Add to Home Screen.
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+const STANDALONE = navigator.standalone === true ||
+  window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+if (!STANDALONE && /iPhone|iPad/.test(navigator.userAgent)) {
+  const tip = document.getElementById("install-tip");
+  if (tip) tip.hidden = false;
+}
 
 // ---------------------------------------------------------------- go
 

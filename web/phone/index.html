@@ -9,11 +9,13 @@
 <meta name="apple-mobile-web-app-title" content="NeuroMech">
 <meta name="theme-color" content="#202020">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
 <title>NeuroMech</title>
 </head>
 <body>
-<!-- Flicker bars: full screen, behind everything. -->
+<!-- Flicker circles: full-screen canvas, behind everything. -->
 <canvas id="flicker"></canvas>
 <!-- Video: letterboxed in the centre region, only redrawn on new frames. -->
 <canvas id="video"></canvas>
@@ -45,7 +47,9 @@
 </div>
 
 <div id="start">
-  <div>NeuroMech<br><small>Tap to start</small></div>
+  <div>NeuroMech<br><small>Tap to start</small>
+    <p id="install-tip" hidden>Install: Share → Add to Home Screen, then open NeuroMech from the Home Screen.</p>
+  </div>
 </div>
 <div id="rotate"><div>Rotate to landscape</div></div>
 

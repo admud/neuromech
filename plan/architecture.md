@@ -53,8 +53,13 @@ testing before the robot exists; there's no AR overlay.
 
 ### Phone page: `web/phone/`
 Plain HTML/JS, no build step, served by the hub.
-- Landscape, full screen. Video in the middle, four flicker bars on the
-  edges: up = top, down = bottom, left = left, right = right.
+- Landscape, full screen. Video in the middle, four flicker **circles** at
+  the middle of each edge: up = top, down = bottom, left = left, right =
+  right. Diameter 16% of the short side by default (`?size=`); smaller
+  targets give a weaker SSVEP, so raise it if a target is hard to trigger.
+- Installable as a PWA: manifest + icons (Share → Add to Home Screen on
+  iPhone, which works over plain http). The service worker only registers
+  over HTTPS, where it adds offline start.
 - Selected target highlighted, current command shown, STOP / ARM control.
 - Reports its real frame rate to the hub every second.
 
