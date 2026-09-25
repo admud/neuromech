@@ -9,7 +9,10 @@ html, body {
 }
 body { position: fixed; inset: 0; }
 
-#flicker { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; display: block; }
+#flicker { position: fixed; inset: 0; pointer-events: none; }
+/* Each target is its own small layer; only its background colour changes per frame. */
+#flicker .target { position: fixed; border-radius: 50%; background: rgb(128,128,128);
+                   will-change: background-color; contain: strict; }
 #video { position: fixed; display: block; background: #000; image-rendering: auto; }
 
 #safe-probe {

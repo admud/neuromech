@@ -72,15 +72,9 @@ function place(node, r) {
 
 function relayout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const dpr = window.devicePixelRatio || 1;
   layout = computeLayout(vw, vh, safeInsets());
 
-  const circles = {};
-  for (const id of TARGET_IDS) {
-    const t = layout.targets[id];
-    circles[id] = { cx: t.cx * dpr, cy: t.cy * dpr, r: t.r * dpr };
-  }
-  flicker.resize(Math.round(vw * dpr), Math.round(vh * dpr), circles);
+  flicker.resize(layout.targets);
 
   placeVideo();
 

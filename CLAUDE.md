@@ -176,5 +176,8 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
   number (C4 = 20 Hz), so it decodes "right" all the time. Use `--device sim`
   to test behaviour.
 - In a full-screen sim iframe, Esc only exits full screen; Space still STOPs.
+- The laptop's Chrome renders on the Intel GPU (4K panel at 1.5x). The phone page on the
+  laptop drops to ~60 fps with uneven frames while the dashboard's 3D sim runs, which garbles
+  the flicker. Set Chrome to the RTX 3080 (Windows Graphics settings → High performance).
 - The decoder margin defaults to 0.08: at 0.06 the robot crept ~10% of the time
   while looking away in sim. Live look-away-to-stop is ~2.4 s (3 s window).

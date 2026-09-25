@@ -139,6 +139,13 @@ Re-arming is always a deliberate long-press or ARM.
 - **Phone fps ~60**
   - Safari Feature Flag still on, or Low Power Mode on.
   - Reload after changing either.
+- **Flicker looks uneven when the phone page runs on the laptop itself**
+  - The laptop's Intel GPU can't hold 120 fps for the phone page while the dashboard's 3D sim
+    renders: frames alternate ~8/17 ms (measured 2026-09-25: 120 fps alone, ~60 fps with 35–47%
+    late frames next to the sim). The status line's fps / p95 shows it.
+  - Fix: Windows Settings → System → Display → Graphics → Google Chrome → **High performance**
+    (RTX 3080), then fully restart Chrome. Or turn the dashboard's Virtual robot switch off while
+    checking the flicker. The iPhone has its own GPU and isn't affected.
 - **Phone shows DISCONNECTED**
   - The hub is down, or the WiFi changed: it reconnects by itself within a few seconds.
   - Otherwise check the firewall.
