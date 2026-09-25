@@ -1,0 +1,64 @@
+import time
+
+from fastapi.testclient import TestClient
+
+from hub.server import create_app
+from hub.stub_engine import StubEngine
+
+
+def receive_type(ws, kind, limit=20):
+    for _ in range(limit):
+        msg = ws.receive_json()
+        if msg.get("type") == kind:
+            return msg
+    raise AssertionError(f"No {kind} in {limit} messages")
+
+
+def test_health_and_phone_config_arm():
+    engine = StubEngine()
+    with TestClient(create_app(engine)) as client:
+        assert client.get("/api/health").json() == {"ok": True}
+        with client.websocket_connect("/ws/phone") as phone:
+            assert phone.receive_json()["type"] == "config"
+            phone.send_json({"type": "arm", "armed": True})
+            state = receive_type(phone, "state")
+            assert state["phone"]["connected"] is True
+            # The state broadcast may race the incoming arm, so poll a later state.
+            for _ in range(5):
+                if state["armed"]:
+                    break
+                state = receive_type(phone, "state")
+            assert state["armed"] is True
+        assert engine.phone is False
+        assert engine.reason == "phone_lost"
+
+
+def test_config_rebroadcast():
+    with TestClient(create_app(StubEngine())) as client:
+        with client.websocket_connect("/ws/phone") as phone:
+            phone.receive_json()
+            with client.websocket_connect("/ws/dashboard") as dashboard:
+                dashboard.receive_json()
+                dashboard.send_json({"type": "set_config", "freqs": {"up": 12.0}})
+                assert receive_type(dashboard, "config")["targets"][0]["freq"] == 12.0
+                assert receive_type(phone, "config")["targets"][0]["freq"] == 12.0
+
+
+def test_robot_commands_video_and_replacement():
+    with TestClient(create_app(StubEngine())) as client:
+        with client.websocket_connect("/ws/video") as viewer:
+            with client.websocket_connect("/ws/robot") as first:
+                cmd1 = receive_type(first, "cmd")
+                cmd2 = receive_type(first, "cmd")
+                assert cmd2["seq"] > cmd1["seq"]
+                assert cmd1["ttl_ms"] == 500
+                frame = b"\xff\xd8test\xff\xd9"
+                first.send_bytes(frame)
+                assert viewer.receive_bytes() == frame
+                with client.websocket_connect("/ws/robot") as second:
+                    assert receive_type(second, "cmd")["seq"] > cmd2["seq"]
+                    second.send_json({"type": "hello", "name": "sim", "client": "robot"})
+                    with client.websocket_connect("/ws/dashboard") as dashboard:
+                        dashboard.receive_json()
+                        assert receive_type(dashboard, "state")["robot"]["connected"] is True
+                # Closing the old socket may already have surfaced to TestClient.
