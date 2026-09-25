@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-with open("README.rst", "r") as fh:
+with open("EEG-ExPy_README.rst", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 def filter_requirements(requirements_list):
@@ -19,7 +19,7 @@ def filter_requirements(requirements_list):
                 filtered.append(req)
     return filtered
 
-fptxt = open('requirements.txt', 'r').read()
+fptxt = open('requirements.txt', 'r', encoding='utf-8').read()
 install_requires_analysis = filter_requirements(fptxt.split('## ~~ Analysis Requirements ~~')[1].split('## ~~')[0].splitlines()[1:])
 install_requires_streaming = filter_requirements(fptxt.split('## ~~ Streaming Requirements ~~')[1].split('## ~~')[0].splitlines()[1:])
 install_requires_stimpres = filter_requirements(fptxt.split('## ~~ Stimpres Requirements ~~')[1].split('## ~~')[0].splitlines()[1:])

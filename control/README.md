@@ -16,7 +16,7 @@ Requires **Python 3.10** (Windows tested).
 
 ```bash
 cd control
-python -m venv .venv
+py -3.10 -m venv .venv          # macOS/Linux: python3.10 -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
