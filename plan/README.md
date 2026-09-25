@@ -149,9 +149,12 @@ Every Phase 1 track can be built and tested on its own:
 
 ## Reviews
 
-@main reviews each track when it hands off, sends findings to the owner,
-and the track is done once they're fixed. fable is only asked for advice if
-@main hits a problem it can't solve. Focus by track:
+@main reviews **and tests** each track when it hands off: running it
+through its real interface, calling its functions, or building mock
+counterparts where the other side isn't ready, plus direct integration
+tests between tracks as soon as both sides exist. Findings go to the owner,
+and the track is done once they're fixed and re-tested. fable is only asked
+for advice if @main hits a problem it can't solve. Focus by track:
 - **1A:** send loops can't die on a bad client; video relay never queues; robot `cmd` always at 10 Hz.
 - **1B:** every safety rule in protocol.md; thread safety; no `input()` path; each decode counted once.
 - **1C:** flicker is time-based and exact per target; no per-frame allocation; video can't stall the flicker.
@@ -163,12 +166,12 @@ and the track is done once they're fixed. fable is only asked for advice if
 
 (@main updates this. Agents report in their own brief's handoff notes.)
 - 0 plan + contract: done (@main)
-- 1A hub server: not started
-- 1B BCI engine: not started
-- 1C phone page: not started
-- 1D dashboard: not started
-- 1E 3D virtual sim: not started
-- 1F robot model: not started
+- 1A hub server: in progress (sol)
+- 1B BCI engine: in progress (opus3)
+- 1C phone page: in progress (opus)
+- 1D dashboard: queued after 1C (opus)
+- 1E 3D virtual sim: in progress (opus2)
+- 1F robot model: in progress (astra)
 - 2 integration: blocked on 1A–1F + reviews
 - 3A RPi robot: later, needs the robot
 
