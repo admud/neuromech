@@ -120,3 +120,32 @@ def test_robot_commands_video_and_replacement():
                         dashboard.receive_json()
                         assert receive_type(dashboard, "state")["robot"]["connected"] is True
                 # Closing the old socket may already have surfaced to TestClient.
+
+
+def test_video_relay_never_sends_a_stale_frame():
+    import asyncio
+
+    from hub import video as videomod
+
+    class Viewer:
+        def __init__(self):
+            self.got = []
+
+        async def send_bytes(self, b):
+            self.got.append(b)
+
+    async def scenario():
+        relay = videomod.VideoRelay()
+        await relay.publish(b"old")
+        relay.frame_t -= videomod.MAX_AGE_S + 0.5      # the robot left a while ago
+        viewer = Viewer()
+        task = asyncio.create_task(relay.serve(viewer))
+        await asyncio.sleep(0.05)
+        stale = list(viewer.got)
+        await relay.publish(b"new")
+        await asyncio.sleep(0.05)
+        task.cancel()
+        return stale, viewer.got
+
+    stale, got = asyncio.run(scenario())
+    assert stale == [] and got == [b"new"]
