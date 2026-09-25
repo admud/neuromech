@@ -91,12 +91,100 @@ export function mecanumWheelSpeeds(vx, vy, wz, dims) -> {fl, fr, rl, rr}
    1E brief says, and tell @main.
 
 ## Acceptance
-- [ ] Recognisably the robot in the photo (chassis shape, yellow mecanum wheels, red driver board, Pi Zero)
-- [ ] Z-up, metres, +x forward, origin on the ground; `dims` and `cameraMount` accurate to the `DIMS` values
+- [x] Recognisably the robot in the photo (chassis shape, yellow mecanum wheels, red driver board, Pi Zero)
+- [x] Z-up, metres, +x forward, origin on the ground; `dims` and `cameraMount` accurate to the `DIMS` values
 - [ ] In `model.html`: forward spins all wheels forward; strafe left spins FL/RR backward and FR/RL forward, with the rollers visibly angled consistently with that
-- [ ] Within the draw-call/triangle budget; no external assets
-- [ ] Handoff notes list every `DIMS` value and whether it was measured or estimated
-- [ ] Committed, @main tagged
+- [x] Within the draw-call/triangle budget; no external assets
+- [x] Handoff notes list every `DIMS` value and whether it was measured or estimated
+- [x] Committed, @main tagged
 
 ## Handoff notes
-_(fill in when done)_
+
+Implemented in `web/twin/robot_model.js` and `web/twin/model.html`.
+Initial working commit: `fa97fa7`; subsequent correction follows main's
+approved handedness change in `e191140` / channel #200. The mixer is unchanged.
+
+The model has two shared, extruded, genuinely perforated decks; brass
+standoffs; four scalloped yellow wheels with nine instanced capsule rollers
+each; motors; two red driver boards with heatsinks, terminals and capacitors;
+blue buck converter; green Pi Zero with 40 pins; AA holder and two cells;
+five wires; and a proposed camera mast. It needs no downloaded model,
+texture, CDN, DOM, or network connection. Materials and geometries are shared
+within each model; separate model instances own their resources independently.
+`setHighlight(null)` clears the glow; `dispose()` is idempotent.
+
+Run from the repo root:
+```powershell
+control/.venv/Scripts/python.exe -m http.server 8767 --bind 127.0.0.1 --directory web
+# Open http://127.0.0.1:8767/twin/model.html
+```
+With the hub running, the same preview is `/twin/model.html`. It has no
+WebSocket connection and cannot replace the virtual robot. The preview uses
+1E's existing `vendor/three/three.module.js` and
+`vendor/three/addons/controls/OrbitControls.js`; 1F did not alter vendor files.
+Controls: vx/vy/wz sliders, four direction presets, Stop/Space/Escape,
+turntable, top/reset views, and armed/collision highlights. Wheel speeds
+are physical m/s and rad/s, so the sim must scale normalised commands first.
+
+### Validation and remaining review
+
+- **32 model draw calls and 15,648 triangles**, including electronics and
+  wires. This is the model's colour pass; scene helpers and shadow passes add
+  their own render work. Every model mesh casts and receives shadows.
+- Actual vendored three.js imported in Node; checked all four direction
+  signs, both yaw signs, zero velocity, animation, invalid dt/speed handling,
+  custom camera placement/pitch, independent instances and one-time disposal.
+- **108 no-slip constraints passed** across 27 combined vx/vy/wz commands,
+  using the actual instanced roller-axis matrices and wheel locations.
+  For each wheel, `(vx - wz*y - r*omega, vy + wz*x) dot rollerAxis = 0`.
+- Verified the static geometry stays inside returned `dims` with camera
+  heights 0.08, 0.12, 0.25 and 0.31 m. Preview module syntax and every local
+  module HTTP import passed.
+- Inspected a software rasterisation of the actual instantiated triangle
+  geometry against the photo; the silhouette, materials and component layout
+  are recognisable. This was a geometry check, not a WebGL screenshot.
+- **Remaining:** live browser rendering and clicking the preview controls.
+  CUA reported no connected browser. Automatic approval review rejected the
+  headless Chrome test launch as "blocked by policy". The preview acceptance
+  box above remains open for main's browser review; its underlying kinematics
+  and geometry checks passed. No other implementation work is known pending.
+
+Default returned dimensions (rounded): length **0.300 m**, width
+**0.203678 m**, height **0.263485 m**, wheel radius **0.035 m**, wheelbase
+**0.180 m**, track **0.174 m**, conservative footprint radius **0.181304 m**.
+Length/width enclose the model symmetrically about its ground origin; wheel
+bounds include the continuous rolling envelope. Height includes the camera.
+`cameraMount = {position: [0.135, 0, 0.250], pitchDeg: -10}`; its position is
+at the lens front, pointing +x with negative pitch down. Pass
+`createRobotModel({camera: world.robot.camera})` to apply the world settings.
+
+### Complete DIMS inventory
+
+All lengths/positions below are **metres**; size arrays use local x/y/z
+order. No physical robot dimensions have been measured. **Every value is a
+photo estimate or proposed visual detail except** `pi.size` (the supplied
+65 x 30 mm part reference), `battery.cellLength` and `battery.cellRadius`
+(the supplied 50 x 14 mm reference), and the fixed design/count settings:
+`wheel.rollerAngleDeg = 45`, `wheel.rollers = 9` (brief approximation),
+`driver.fins = 6` (visual simplification), `pi.headerPitch = 0.00254`
+(nominal connector pitch). Camera height/pitch defaults come from the
+protocol world example; the entire camera/mast is proposed, not photographed.
+
+| DIMS group | Every stored value |
+|---|---|
+| `chassis` | `length: 0.300`, `width: 0.150`, `cornerRadius: 0.035`, `thickness: 0.002`, `lowerZ: 0.050`, `upperZ: 0.098`, `slotLength: 0.026`, `slotWidth: 0.0035`, `holeRadius: 0.0018`, `standoffRadius: 0.003`, `boltRadius: 0.0028`, `boltHeight: 0.002` |
+| `wheel` | `radius: 0.035`, `base: 0.180`, `track: 0.174`, `hubRadius: 0.026`, `hubWidth: 0.020`, `plateThickness: 0.002`, `coreRadius: 0.011`, `coreWidth: 0.027`, `rollerRadius: 0.006`, `rollerStraight: 0.025`, `rollers: 9`, `rollerAngleDeg: 45` |
+| `motor` | `radius: 0.012`, `length: 0.033`, `gearbox: [0.032, 0.020, 0.023]` |
+| `pcb` | `thickness: 0.0016`, `clearance: 0.004` |
+| `driver` | `size: [0.043, 0.043]`, `centersX: [-0.025, 0.027]`, `y: 0`, `heatsink: [0.023, 0.018, 0.027]`, `finThickness: 0.0015`, `fins: 6`, `terminal: [0.012, 0.009, 0.010]`, `capRadius: 0.0033`, `capHeight: 0.012` |
+| `buck` | `size: [0.043, 0.021]`, `center: [-0.074, 0.013]`, `inductorRadius: 0.005`, `inductorHeight: 0.005`, `trimmer: [0.007, 0.007, 0.009]` |
+| `pi` | `size: [0.030, 0.065]`, `center: [-0.114, 0]`, `chip: [0.010, 0.012, 0.0015]`, `port: [0.007, 0.011, 0.004]`, `headerPitch: 0.00254`, `pinWidth: 0.00065`, `pinHeight: 0.006`, `headerBaseHeight: 0.0025` |
+| `battery` | `size: [0.036, 0.058, 0.017]`, `center: [0.100, 0.005]`, `cellLength: 0.050`, `cellRadius: 0.007`, `wall: 0.002`, `terminalHeight: 0.001` |
+| `camera` | `x: 0.135`, `height: 0.250`, `pitchDeg: -10`, `board: [0.0016, 0.025, 0.024]`, `lensRadius: 0.0045`, `lensLength: 0.008`, `bracketWidth: 0.010`, `bracketThickness: 0.003`, `bracketFoot: 0.022` |
+| `wire` | `radius: 0.00065`, `archHeight: 0.042` |
+
+Deck hole/slot positions, cosmetic component offsets and wire endpoints are
+dimensionless proportions of these values. The roller-centre radius is
+derived so the capsule tips stay inside `wheel.radius`; wheel width is
+derived from its hub and capsule dimensions. Updating `DIMS` and constructing
+a fresh model updates the geometry and returned bounds together.

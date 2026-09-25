@@ -115,7 +115,9 @@
       controls.update();
       controls.saveState();
 
-      scene.add(new THREE.HemisphereLight(0xe4efff, 0x596779, 2.4));
+      const sky = new THREE.HemisphereLight(0xe4efff, 0x596779, 2.4);
+      sky.position.set(0, 0, 1);
+      scene.add(sky);
       const key = new THREE.DirectionalLight(0xffefd6, 4.0);
       key.position.set(0.30, 0.25, 0.65);
       key.castShadow = true;

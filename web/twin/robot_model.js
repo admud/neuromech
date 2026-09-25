@@ -37,7 +37,8 @@ const TAU = Math.PI * 2;
 
 /** Physical wheel speeds, not normalised robot commands. Positive = forward.
  * At the ground, positive rotation about +y moves the tread toward -x.
- * FL/RR roller axes are +x,+y; FR/RL are +x,-y (the top view is an O).
+ * FL/RR roller axes are +x,-y; FR/RL are +x,+y (the top view is an X).
+ * Their no-slip constraint is (vx-r*omega, vy) dot rollerAxis = 0.
  */
 export function mecanumWheelSpeeds(vx, vy, wz, dims) {
   const k = (dims.wheelBase + dims.trackWidth) / 2;
@@ -164,7 +165,7 @@ export function createRobotModel(opts = {}) {
     (w.rollerStraight * Math.sin(tilt) / 2) ** 2);
   const wheels = {};
   for (const [name, xSign, ySign, handedness] of [
-    ['fl', 1, 1, 1], ['fr', 1, -1, -1], ['rl', -1, 1, -1], ['rr', -1, -1, 1],
+    ['fl', 1, 1, -1], ['fr', 1, -1, 1], ['rl', -1, 1, 1], ['rr', -1, -1, -1],
   ]) {
     const wheel = new THREE.Group();
     wheel.name = `wheel-${name}`;
@@ -315,25 +316,30 @@ export function createRobotModel(opts = {}) {
   // Wheel bounds use the full continuous rolling envelope. The camera may
   // extend beyond the chassis when callers choose a different pitch/height.
   object.updateMatrixWorld(true);
-  const cameraBounds = new THREE.Box3().setFromObject(cameraRig);
+  const wheelGroups = new Set(Object.values(wheels));
+  const staticBounds = new THREE.Box3();
+  for (const child of object.children) {
+    if (!wheelGroups.has(child)) staticBounds.expandByObject(child);
+  }
   const wheelWidth = Math.max(w.coreWidth, w.hubWidth + w.plateThickness,
     w.rollerStraight * Math.cos(tilt) + 2 * w.rollerRadius);
-  const halfLength = Math.max(c.length / 2, w.base / 2 + w.radius,
-    Math.abs(cameraBounds.min.x), Math.abs(cameraBounds.max.x));
-  const halfWidth = Math.max(c.width / 2, (w.track + wheelWidth) / 2, cam.board[1] / 2);
+  const halfLength = Math.max(w.base / 2 + w.radius,
+    Math.abs(staticBounds.min.x), Math.abs(staticBounds.max.x));
+  const halfWidth = Math.max((w.track + wheelWidth) / 2,
+    Math.abs(staticBounds.min.y), Math.abs(staticBounds.max.y));
   const dims = {
     length: halfLength * 2, width: halfWidth * 2,
-    height: Math.max(cameraBounds.max.z, c.upperZ + c.thickness + d.pcb.clearance +
-      d.pcb.thickness + Math.max(d.driver.heatsink[2], d.wire.archHeight), w.radius * 2),
+    height: Math.max(staticBounds.max.z, w.radius * 2),
     wheelRadius: w.radius, wheelBase: w.base, trackWidth: w.track,
     footprintRadius: Math.hypot(halfLength, halfWidth),
   };
+  const wheelNames = Object.keys(wheels);
   let disposed = false;
   return {
     object, dims, cameraMount,
     update(dt, wheelRadPerSec = {}) {
       if (disposed || !Number.isFinite(dt) || dt <= 0) return;
-      for (const name of Object.keys(wheels)) {
+      for (const name of wheelNames) {
         const speed = wheelRadPerSec[name];
         if (Number.isFinite(speed)) wheels[name].rotation.y = (wheels[name].rotation.y + speed * dt) % TAU;
       }
