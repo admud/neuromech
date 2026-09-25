@@ -1,0 +1,95 @@
+name: Test
+
+on:
+  push:
+    branches: [ master, develop, 'dev/*' ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, py-${{ matrix.python_version }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macOS-latest]
+        python_version: ['3.10']
+        env_file: [environments/eeg-expy-full.yml]
+        env_name: [eeg-expy-full]
+        include:
+          # Experimental Full Build: Catch regressions on 3.11 early
+          - os: ubuntu-22.04
+            python_version: '3.11'
+            experimental: true
+            env_file: environments/eeg-expy-full.yml
+            env_name: eeg-expy-full
+
+          # Experimental Streaming Builds: Verify acquisition/analysis on 3.12+
+          - os: ubuntu-22.04
+            python_version: '3.12'
+            experimental: true
+            env_file: environments/eeg-expy-streaming.yml
+            env_name: eeg-expy-streaming
+          - os: ubuntu-22.04
+            python_version: '3.13'
+            experimental: true
+            env_file: environments/eeg-expy-streaming.yml
+            env_name: eeg-expy-streaming
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install APT dependencies
+      if: "startsWith(runner.os, 'Linux')"
+      run: |
+        make install-deps-apt
+    - name: Set up conda env
+      uses: ./.github/actions/setup-conda-env
+      with:
+        environment-file: ${{ matrix.env_file }}
+        activate-environment: ${{ matrix.env_name }}
+        python-version: ${{ matrix.python_version }}
+    - name: Run eeg-expy install test
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          Xvfb :0 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &> xvfb.log &
+          export DISPLAY=:0
+        fi
+        eegnb --help
+        eegnb runexp --help
+    - name: Run examples with coverage
+      run: |
+        if [ "$RUNNER_OS" == "Linux" ]; then
+          Xvfb :0 -screen 0 1024x768x24 -ac +extension GLX +render -noreset &> xvfb.log &
+          export DISPLAY=:0
+        fi
+        make test
+
+
+  typecheck:
+    name: typecheck (${{ matrix.os }}, py-${{ matrix.python_version }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-22.04']
+        python_version: ['3.10']
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up conda env
+      uses: ./.github/actions/setup-conda-env
+      with:
+        environment-file: environments/eeg-expy-full.yml
+        activate-environment: eeg-expy-full
+        python-version: ${{ matrix.python_version }}
+    - name: Typecheck
+      run: |
+        make typecheck

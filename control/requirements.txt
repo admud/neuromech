@@ -1,0 +1,120 @@
+
+## ~~ Analysis Requirements ~~ 
+
+scikit-learn>=0.23.2
+pandas>=1.1.4
+numpy>=1.26.0
+mne>=0.20.8
+seaborn>=0.11.0
+pyriemann>=0.2.7
+jupyter
+gdown>=4.5.1
+matplotlib>=3.3.3
+pysocks>=1.7.1
+pyserial>=3.5
+h5py>=3.1.0
+pytest-shutil
+pyobjc>=8.0; sys_platform == 'darwin'
+airium>=0.1.0
+attrdict>=2.0.1
+attrdict3
+
+
+## ~~ Streaming Requirements ~~
+
+pyxid2
+muselsl>=2.0.2
+# Upgrade from 1.10.5 to 1.16.2 so the arm64 lib is available to macOS Apple Silicon for preventing error:
+# pylsl/liblsl64.dylib' (mach-o file, but is an incompatible architecture (have 'x86_64', need 'arm64e' or 'arm64'))
+pylsl==1.16.2
+brainflow>=4.8.2
+pysocks>=1.7.1
+pyserial>=3.5
+h5py>=3.1.0
+pytest-shutil
+pyobjc>=8.0; sys_platform == 'darwin'
+#Removed pynput dependency: it pulls in evdev, which fails to build from
+#source on modern Linux under the conda toolchain (missing kernel header
+#symbols). The two callsites that used pynput.keyboard.Listener have been
+#replaced with a threading + stdin "press enter to cancel" helper in
+#eegnb/utils/cancel.py — cross-platform, zero new deps.
+airium>=0.1.0
+attrdict>=2.0.1
+attrdict3
+click
+
+# Tests
+pytest
+pytest-cov
+nbval
+
+
+## ~~ Stimpres Requirements ~~ 
+
+pyobjc>=8.0; sys_platform == 'darwin'
+#upgrade psychopy to use newer wxpython dependency which is prebuilt for m1 support.
+# Forked with a fix for Rift stereo projection matrix crash under strict-ndim psychxr.
+psychopy @ git+https://github.com/pellet/psychopy.git@v2026.2.0-rift-fix
+ffpyplayer==4.5.2 # 4.5.3 fails to build as wheel.
+# Licence: MIT, but 3.0.20+ introduced paid licensing for the prebuilt macOS/Windows binaries
+# (psychtoolbox.net). Linux unaffected.
+psychtoolbox>=3.0.20; platform_machine == "arm64"
+scikit-learn>=0.23.2
+pandas>=1.1.4
+numpy>=1.26.0
+mne>=0.20.8
+seaborn>=0.11.0
+pysocks>=1.7.1
+pyserial>=3.5
+h5py>=3.1.0
+pytest-shutil
+
+airium>=0.1.0
+attrdict>=2.0.1
+attrdict3
+
+# pyglet downgrade to prevent threadmode warning on windows
+# See issue: https://github.com/psychopy/psychopy/issues/2876
+pyglet==1.4.11 ; platform_system == "Windows"
+
+# Quest-link VR support - prebuilt Windows wheels from the fork's GitHub
+# release (0.2.6rc1 adds Python 3.10 support).
+# psychxr/quest-link is Windows-only.
+psychxr @ https://github.com/pellet/psychxr/releases/download/v0.2.6rc1/psychxr-0.2.6rc1-cp310-cp310-win_amd64.whl ; platform_system == "Windows" and python_version == "3.10"
+
+# Used for generating checkerboard in pattern reversal experiment
+stimupy
+# PsychoPy/PsychXR does not yet officially support Python > 3.10; the wheels below are experimental.
+psychxr @ https://github.com/pellet/psychxr/releases/download/v0.2.6rc1/psychxr-0.2.6rc1-cp311-cp311-win_amd64.whl ; platform_system == "Windows" and python_version == "3.11"
+psychxr @ https://github.com/pellet/psychxr/releases/download/v0.2.6rc1/psychxr-0.2.6rc1-cp312-cp312-win_amd64.whl ; platform_system == "Windows" and python_version == "3.12"
+psychxr @ https://github.com/pellet/psychxr/releases/download/v0.2.6rc1/psychxr-0.2.6rc1-cp313-cp313-win_amd64.whl ; platform_system == "Windows" and python_version == "3.13"
+
+
+## ~~ Docsbuild Requirements ~~
+setuptools<81  # brainflow imports pkg_resources at runtime; setuptools 81 deprecated it and 82 removed it
+recommonmark
+brainflow
+numpydoc
+
+# Docs
+sphinx
+sphinx-gallery
+sphinx_rtd_theme
+sphinx-tabs
+sphinx-copybutton
+sphinxcontrib-httpdomain
+numpydoc
+recommonmark
+versioneer
+rst2pdf
+docutils
+
+# Tests
+mypy
+pytest
+pytest-cov
+nbval
+
+# Types
+types-requests
+

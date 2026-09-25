@@ -1,0 +1,19 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = """
+    --cov=eegnb
+    --cov-report=term
+    --cov-report=xml
+    --cov-report=html
+    --nbval-lax
+    --current-env
+    --ignore-glob 'examples/**.py'
+    --ignore-glob '**/baseline_task.py'
+    --ignore 'tests/test_run_experiments.py'
+"""
+testpaths = [
+    "eegnb",
+    "tests",
+    #"examples",
+]
+python_files = ["*.py", "*.ipynb"]
