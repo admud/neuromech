@@ -15,7 +15,7 @@ def parse_args(argv=None):
     parser.add_argument("--port", help="OpenBCI USB dongle COM port")
     parser.add_argument("--freqs", default="11,14,17,20", help="up,down,left,right frequencies")
     parser.add_argument("--window", type=float, default=3.0)
-    parser.add_argument("--margin", type=float, default=0.06)
+    parser.add_argument("--margin", type=float, default=0.08)
     parser.add_argument("--dwell", type=int, default=2)
     parser.add_argument("--speed", type=float, default=0.3)
     parser.add_argument("--model")

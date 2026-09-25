@@ -54,7 +54,7 @@ def test_synthetic_start_stop_and_status_shape():
         assert list(st["scores"]) == ["up", "down", "left", "right"]
         assert set(st["command"]) == {"vx", "vy", "direction", "source"}
         assert set(st["dwell"]) == {"direction", "count", "needed"}
-        assert st["params"] == {"window_s": 3.0, "margin": 0.06, "dwell": 2, "speed": 0.3}
+        assert st["params"] == {"window_s": 3.0, "margin": 0.08, "dwell": 2, "speed": 0.3}
         eeg = st["eeg"]
         assert eeg["device"] == "synthetic" and eeg["fs"] == 250 and eeg["ok"] is True
         assert len(eeg["channels"]) == 4 and eeg["stalled_s"] < 1.0

@@ -76,7 +76,7 @@ they need and ignore the rest. Fields marked *engine* come from
  "command": {"vx": 0.3, "vy": 0.0, "direction": "up", "source": "bci"},  // engine; source bci|override|none
  "dwell": {"direction": "up", "count": 1, "needed": 2},  // engine
  "decode_ms": 11.8,                    // engine
- "params": {"window_s": 3.0, "margin": 0.06, "dwell": 2, "speed": 0.3},  // engine
+ "params": {"window_s": 3.0, "margin": 0.08, "dwell": 2, "speed": 0.3},  // engine
  "eeg": {"device": "cyton", "port": "COM8", "fs": 250,
          "channels": ["P7", "P8", "O1", "O2"], "ok": true, "stalled_s": 0.0,
          "quality": [{"name": "O1", "std_uv": 5.2, "railed": false}]},     // engine; quality optional
@@ -197,7 +197,7 @@ class EngineSettings:
     freqs: dict[str, float] = field(default_factory=lambda: {
         "up": 11.0, "down": 14.0, "left": 17.0, "right": 20.0})
     window_s: float = 3.0
-    margin: float = 0.06
+    margin: float = 0.08
     dwell: int = 2                   # consecutive decodes before a direction activates
     speed: float = 0.3               # normalised, 0..1
     interval_s: float = 0.25         # decode period

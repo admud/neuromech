@@ -12,7 +12,7 @@ export class DemoDashLink {
     this.armed = false;
     this.reason = "startup";
     this.freqs = { up: 11, down: 14, left: 17, right: 20 };
-    this.params = { window_s: 3.0, margin: 0.06, dwell: 2, speed: 0.3 };
+    this.params = { window_s: 3.0, margin: 0.08, dwell: 2, speed: 0.3 };
     this.configId = 1;
     this.gaze = null;
     this.override = null;

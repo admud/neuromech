@@ -18,7 +18,7 @@ class StubEngine:
         self.freqs = dict(getattr(settings, "freqs", DEFAULT_FREQS))
         self.params = {
             "window_s": getattr(settings, "window_s", 3.0),
-            "margin": getattr(settings, "margin", 0.06),
+            "margin": getattr(settings, "margin", 0.08),
             "dwell": getattr(settings, "dwell", 2),
             "speed": getattr(settings, "speed", 0.3),
         }
