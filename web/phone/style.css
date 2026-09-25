@@ -1,0 +1,87 @@
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  overflow: hidden; background: #202020; color: #eee;
+  font: 14px -apple-system, system-ui, "Segoe UI", sans-serif;
+  touch-action: none; overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+body { position: fixed; inset: 0; }
+
+#flicker { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; display: block; }
+#video { position: fixed; display: block; background: #000; image-rendering: auto; }
+
+#safe-probe {
+  position: fixed; visibility: hidden; pointer-events: none;
+  padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left);
+}
+
+/* Winner outline sits in the gap around the bar, so the bar area itself is untouched. */
+#outline { position: fixed; display: none; border: 4px solid #3f3; border-radius: 6px;
+           box-sizing: border-box; pointer-events: none; }
+
+#arrow {
+  position: fixed; display: none; pointer-events: none;
+  color: #3f3; font-size: 72px; line-height: 1; text-align: center;
+  text-shadow: 0 0 6px #000, 0 0 12px #000;
+}
+#arrow.override { color: #4af; }
+
+#armstate, #status, #reason, #disconnected {
+  position: fixed; pointer-events: none; white-space: nowrap;
+  background: rgba(0,0,0,.6); border-radius: 6px; padding: 2px 8px;
+}
+#armstate { font-weight: 700; font-size: 16px; }
+#armstate.armed { background: #b00; color: #fff; }
+#armstate.disarmed { background: rgba(0,0,0,.7); color: #fc3; }
+#status { font-size: 11px; color: #ccc; }
+#reason { display: none; font-size: 14px; color: #fc3; }
+#disconnected {
+  display: none; font-size: 18px; font-weight: 700; color: #fff; background: #a00;
+  padding: 6px 14px;
+}
+
+button {
+  font: inherit; color: inherit; border: none; margin: 0; padding: 0;
+  touch-action: none; -webkit-user-select: none; user-select: none;
+}
+#stop {
+  position: fixed; border-radius: 50%; background: #d00; color: #fff;
+  font-weight: 800; font-size: 18px; box-shadow: 0 0 0 3px #fff inset;
+}
+#stop:active { background: #f33; }
+#arm {
+  position: fixed; border-radius: 50%; background: #333; color: #fc3;
+  font-weight: 700; font-size: 11px; line-height: 1.1;
+}
+#arm svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+#arm span { position: relative; }
+#arm .track { fill: none; stroke: #555; stroke-width: 8; }
+#arm .ring {
+  fill: none; stroke: #3f3; stroke-width: 8;
+  stroke-dasharray: 276.5; stroke-dashoffset: 276.5;  /* 2*pi*44 */
+}
+#arm.holding .ring { stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
+#arm.hidden { display: none; }
+
+#hint {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  max-width: 60vw; background: #333; border: 2px solid #fc3; border-radius: 8px;
+  padding: 12px 36px 12px 12px; font-size: 13px; z-index: 5;
+}
+#hint[hidden] { display: none; }
+#hint-close { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px;
+              background: #555; border-radius: 50%; }
+
+#start, #rotate {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(20,20,20,.92); font-size: 28px; text-align: center; z-index: 10;
+}
+#start small { font-size: 18px; color: #aaa; }
+#start.gone { display: none; }
+#rotate { display: none; z-index: 20; }
+@media (orientation: portrait) {
+  #rotate { display: flex; }
+}

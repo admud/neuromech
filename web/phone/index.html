@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NeuroMech">
+<meta name="theme-color" content="#202020">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<title>NeuroMech</title>
+</head>
+<body>
+<!-- Flicker bars: full screen, behind everything. -->
+<canvas id="flicker"></canvas>
+<!-- Video: letterboxed in the centre region, only redrawn on new frames. -->
+<canvas id="video"></canvas>
+
+<!-- Reads env(safe-area-inset-*) for the layout code. -->
+<div id="safe-probe"></div>
+
+<!-- Static feedback, never flickers. -->
+<div id="outline"></div>
+<div id="arrow"></div>
+<div id="armstate" class="disarmed">DISARMED</div>
+<div id="status">hub …</div>
+<div id="reason"></div>
+<div id="disconnected">DISCONNECTED · reconnecting…</div>
+
+<button id="stop" type="button">STOP</button>
+<button id="arm" type="button">
+  <svg viewBox="0 0 100 100" aria-hidden="true">
+    <circle class="track" cx="50" cy="50" r="44"></circle>
+    <circle class="ring" cx="50" cy="50" r="44"></circle>
+  </svg>
+  <span>HOLD<br>TO ARM</span>
+</button>
+
+<div id="hint" hidden>
+  Frame rate below 100 fps. On iPhone: Settings → Apps → Safari → Advanced →
+  Feature Flags → turn off “Prefer Page Rendering Updates near 60fps”, then reload.
+  <button id="hint-close" type="button">✕</button>
+</div>
+
+<div id="start">
+  <div>NeuroMech<br><small>Tap to start</small></div>
+</div>
+<div id="rotate"><div>Rotate to landscape</div></div>
+
+<script type="module" src="phone.js"></script>
+</body>
+</html>
