@@ -168,8 +168,8 @@ for advice if @main hits a problem it can't solve. Focus by track:
 - 0 plan + contract: done (@main)
 - 1A hub server: in progress (sol)
 - 1B BCI engine: in progress (opus3)
-- 1C phone page: in progress (opus)
-- 1D dashboard: queued after 1C (opus)
+- 1C phone page: done, tested by @main (19/19 e2e checks + reconnect)
+- 1D dashboard: in progress (opus)
 - 1E 3D virtual sim: in progress (opus2)
 - 1F robot model: in progress (astra)
 - 2 integration: blocked on 1A–1F + reviews
