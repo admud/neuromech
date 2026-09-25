@@ -1,9 +1,9 @@
 # Phase 2: integration, end-to-end test, runbook
 
-**Agent:** opus2 (after finishing 1D) · **Runs:** after 1A–1E have all handed off
+**Agent:** opus3 (after finishing 1B) · **Runs:** after 1A–1F have all handed off and fable's reviews are fixed
 
 ## Goal
-Turn five independently built pieces into one working system, prove the
+Turn six independently built pieces into one working system, prove the
 full loop in simulation, and leave the user a demo-day runbook for the one
 real-hardware test (headset + iPhone). You now own **every file**; keep
 [../protocol.md](../protocol.md) in sync with anything you change.

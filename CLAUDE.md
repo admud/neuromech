@@ -8,7 +8,7 @@ it describes, update it in the same commit.
 **NeuroMech**, our project for the Singapore Defense Tech Hackathon (SDTH)
 2026. Demo: **2026-09-26**.
 
-An operator wearing an EEG headset drives an omni-wheel robot with their
+An operator wearing an EEG headset drives a mecanum-wheel robot with their
 eyes. They hold an iPhone showing the robot's live video, surrounded by four
 flickering targets (up/down/left/right), each at its own frequency. Looking
 at one produces an SSVEP at that frequency. The PC decodes it and sends the
@@ -40,7 +40,8 @@ README.md               short project readme
 plan/                   build plan: start at plan/README.md
   architecture.md       system design, decisions log, latency budget, iPhone setup
   protocol.md           THE CONTRACT: routes, messages, Python interfaces, safety model
-  phases/               one brief per agent (1a..1e parallel, 2 integration, 3a/3b later)
+  phases/               one brief per agent (1a..1f parallel, 2 integration, 3a/3b later)
+  assets/               reference material (robot photo)
 control/                SSVEP BCI (EEG-ExPy fork + our scripts). Has its own README.
   ssvep_bci.py          live decoder GUI; `Decoder` class (filter-bank CCA) is reused by the hub
   ssvep_trca.py         calibrated decoders (TRCA-CCA, TRCA)
@@ -62,6 +63,8 @@ web/                    [planned] static pages served by the hub, no build step
   phone/                iPhone page: flicker targets + video + STOP/ARM
   dashboard/            operator dashboard (embeds the twin in an iframe)
   twin/                 three.js digital twin; mode=robot is the virtual robot, mode=view follows one
+    robot_model.js      our robot built from primitives + mecanumWheelSpeeds() (no modelling software)
+    model.html          standalone preview of the robot model
     worlds/default.json the virtual arena (walls, gates, robot camera), also used by Phase 3
     vendor/three/       vendored three.js (no CDN)
 robot/                  [Phase 3] Raspberry Pi robot agent
@@ -113,8 +116,10 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
   This laptop also has Bluetooth serial ports (COM3, COM4); those are never the headset.
 - **iPhone 17**, 120 Hz. Safari needs *Feature Flags → "Prefer Page Rendering
   Updates near 60fps"* **off** to exceed 60 fps. Handheld, landscape.
-- **Robot:** omni wheels on a Raspberry Pi with a camera. Forward/back/strafe
-  only, no rotation yet.
+- **Robot:** 4 mecanum wheels, two-deck aluminium chassis, Raspberry Pi Zero,
+  dual L298N-style motor driver, LM2596 buck, AA packs, camera not fitted yet
+  ([photo](plan/assets/robot-photo-1.jpg)). Forward/back/strafe only, no rotation yet.
+  Wheel mixing: `mecanumWheelSpeeds` in `web/twin/robot_model.js`.
 
 ## Design rules that must not be broken
 

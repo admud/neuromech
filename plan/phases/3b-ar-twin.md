@@ -1,6 +1,6 @@
 # Phase 3B: AR digital twin on the real camera feed
 
-**Agent:** fable · **Runs:** Phase 3, when the real robot camera works, in parallel with 3A
+**Agent:** opus2 (the twin's owner) · **Runs:** Phase 3, when the real robot camera works, in parallel with 3A
 **Status:** outline. Refine with the user before starting (open questions below).
 
 ## Goal

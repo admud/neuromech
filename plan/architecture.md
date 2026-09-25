@@ -31,7 +31,7 @@ video the operator sees on the iPhone. The rest of the loop is identical.
 | EEG | OpenBCI **Cyton**, 8 channels, 250 Hz. Talks to its **USB dongle** over OpenBCI's own radio (not Bluetooth); the dongle shows up as a COM port that changes between machines (COM6, COM8, ...). Decoding uses O1, O2, P7, P8. |
 | PC | Windows laptop running the hub. Python 3.10 venv at `control/.venv`. |
 | Phone | **iPhone 17**, 120 Hz ProMotion, **handheld** in landscape. Web page in Safari, no app. |
-| Robot | **Omni-wheel** robot on a Raspberry Pi with a camera. Moves forward/back/strafe; no rotation for now. RPi code is out of scope until after the hub works (see [README](README.md#later)). |
+| Robot | **4-wheel mecanum** robot ([photo](assets/robot-photo-1.jpg)): two-deck aluminium chassis, **Raspberry Pi Zero**, dual L298N-style motor driver, LM2596 buck, AA packs; camera to be fitted. Moves forward/back/strafe; rotation is possible with mecanum but not used yet. RPi code is Phase 3. |
 | Network | Local WiFi. iPhone Personal Hotspot is the fallback if the WiFi blocks device-to-device traffic. |
 
 ## Components
@@ -76,6 +76,12 @@ dashboard.
   pose telemetry.
 - Shows the brain-control state in 3D: armed ring, decoded direction arrow
   filling with dwell, score bars.
+- **The robot model is built in code, no modelling software.** It's our
+  real robot rebuilt from three.js primitives (extruded chassis plates,
+  instanced mecanum rollers at 45°, driver board, Pi Zero), with dimensions
+  in one table so real measurements drop in. Its wheels spin with real
+  mecanum kinematics, so a strafe looks right. Tiny, offline, and it
+  animates.
 - **Later (Phase 3): AR digital twin.** It follows the real robot's pose
   (odometry + floor markers), and its virtual walls are drawn onto the real
   camera feed in perspective. The camera is fixed on the robot and the floor
@@ -154,4 +160,6 @@ and dwell can be tuned live from the dashboard.
 | Network | Local WiFi |
 | Demo | 2026-09-26 |
 | Testing | The decoder already works with the headset; no separate phone-SSVEP gate. Test everything together at the end. |
+| 3D robot model | Built in code from the robot photo (astra); no modelling software; measurements replace estimates later |
+| Reviews | fable only reviews code; opus agents build |
 | 3D sim / digital twin | Dashboard shows a 3D virtual environment with the robot; usable standalone with the BCI (virtual camera feed on the phone) while the robot is built; later AR-overlaid on the real camera feed as a digital twin |

@@ -163,7 +163,9 @@ arrives within `ttl_ms` of the last one, stop the motors and report
  "gates": [{"x": 1.5, "y": 0.0, "yaw_deg": 90, "width": 0.8}]}
 ```
 Box and gate positions are their centres. `w` runs along the box's local
-x, `d` along its local y.
+x, `d` along its local y. `robot.camera` is the source of truth for the FPV
+camera. The robot's physical dimensions come from the 3D model's `dims`
+(`web/twin/robot_model.js`, 1F); `robot.radius` is only a fallback.
 
 ## Browser-to-browser: twin iframe → dashboard
 

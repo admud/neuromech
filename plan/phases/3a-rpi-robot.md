@@ -27,10 +27,29 @@ systemd for autostart.
    systemd unit so it starts on boot.
 5. Record the camera's mounting height and pitch and hand them to 3B.
 
+## Known hardware (from [../assets/robot-photo-1.jpg](../assets/robot-photo-1.jpg))
+- **Raspberry Pi Zero** (W or 2 W?), two-deck aluminium chassis, 4 mecanum
+  wheels with DC motors.
+- Red **dual L298N-style driver board** (4 motor channels): direction pins
+  + PWM enable per motor, driven from Pi GPIO (`gpiozero` / `RPi.GPIO`,
+  software or hardware PWM).
+- LM2596 buck converter; AA battery packs.
+- No camera fitted yet.
+
+## Build notes
+- Motor mixing: `mecanumWheelSpeeds` from `web/twin/robot_model.js` (1F),
+  ported to Python and scaled to PWM duty.
+- **Check the wheels are fitted in the same handedness the formula
+  assumes** (strafe left → FL/RR backward, FR/RL forward). If not, swap
+  signs in the mixing, not in the protocol.
+- Pi Zero is slow. Use picamera2's hardware MJPEG encoder, not OpenCV
+  encoding, and drop to 15 fps / 480p if needed.
+
 ## Open questions (ask the user first)
-- Motor controller and wiring: which board/library? How many omni wheels (3 or 4) and at what angles?
-- Wheel encoders or IMU on board?
-- Camera: Pi Camera module (which) or USB?
+- Pi Zero W or Zero 2 W?
+- GPIO pin mapping from the Pi to the driver board (IN1–IN4, ENA/ENB per chip)?
+- Wheel encoders or an IMU? (Probably not, so pose would come from the commands.)
+- Which camera module, and where will it be mounted (height, tilt)?
 - Max safe speed indoors?
 
 ## Acceptance

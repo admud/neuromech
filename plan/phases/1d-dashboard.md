@@ -1,12 +1,12 @@
 # Phase 1D: operator dashboard
 
-**Agent:** opus2 · **Runs:** Phase 1, in parallel with 1A–1C, 1E
+**Agent:** opus, after 1C · **Runs:** Phase 1, in parallel with 1A, 1B, 1E, 1F
 
 ## Goal
 A laptop browser page for whoever runs the demo: see what the decoder sees,
 arm and stop, drive by keyboard, tune the BCI live, check every link,
 simulate gaze when there's no headset, and show the **3D digital twin**
-(built by 1E) as the centrepiece.
+(built by 1E and 1F) as the centrepiece.
 
 ## Stack
 Plain HTML + JS ES modules, WebSocket, `createImageBitmap`. The twin is

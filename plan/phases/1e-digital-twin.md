@@ -1,6 +1,6 @@
 # Phase 1E: 3D digital twin and virtual robot
 
-**Agent:** fable · **Runs:** Phase 1, in parallel with 1A–1D
+**Agent:** opus2 · **Runs:** Phase 1, in parallel with 1A–1D, 1F
 
 ## Goal
 A 3D simulation of the robot in a virtual arena, running in the browser.
@@ -27,8 +27,10 @@ real camera feed as AR. Build with that in mind (see *Designed for Phase 3*).
 - [../README.md](../README.md#rules-for-every-agent): git rules
 
 ## You own
-`web/twin/` (e.g. `index.html`, `twin.js`, `world.js`, `robot.js`, `fpv.js`,
-`hud.js`, `style.css`, `worlds/default.json`, `vendor/three/`)
+`web/twin/` (e.g. `index.html`, `twin.js`, `world.js`, `physics.js`,
+`fpv.js`, `hud.js`, `style.css`, `worlds/default.json`, `vendor/three/`),
+**except** `web/twin/robot_model.js` and `web/twin/model.html`, which belong
+to 1F (astra).
 
 ## Stack
 three.js (WebGL), vendored locally. Plain ES modules, **no build step and no
@@ -63,8 +65,15 @@ CDN** (the venue may be offline).
    pose, robot geometry and camera. Default: a ~6 x 4 m arena, a few walls
    making a simple course, 3 gates.
 
-3. **Robot model**: low-poly omni-wheel robot (body, four omni wheels,
-   camera mast). No rotation this phase: heading stays at the spawn heading.
+3. **Robot**: the robot is a **4-wheel mecanum** robot. Its 3D model comes
+   from 1F: `createRobotModel({camera: world.robot.camera})` in
+   `robot_model.js` (contract in [1f-robot-model.md](1f-robot-model.md)).
+   - Until 1F lands, use a placeholder box with four cylinders behind the
+     same interface.
+   - Each frame, call `model.update(dt, mecanumWheelSpeeds(vx, vy, 0, model.dims))`
+     so the wheels spin the way real mecanum wheels would.
+   - Collision radius = `model.dims.footprintRadius`.
+   - No rotation this phase: heading stays at the spawn heading.
    - **Motion:** in the robot frame, `vx` forward and `vy` left, times
      `robot.max_speed_mps` from the world file. Integrate from
      `performance.now()` deltas so a dropped frame doesn't change the speed.
@@ -72,8 +81,9 @@ CDN** (the venue may be offline).
      at walls and slide along them; set `collision: true` in telemetry while
      touching.
 
-4. **FPV camera = the video feed**: a perspective camera on the robot using
-   `robot.camera` (height, pitch, horizontal FOV, 640x480). Render it
+4. **FPV camera = the video feed**: a perspective camera at
+   `model.cameraMount`, with pitch, horizontal FOV and 640x480 from
+   `world.robot.camera`. Render it
    offscreen at ~20 fps and encode to JPEG (quality ~0.7, `toBlob` /
    `convertToBlob`). Send each frame as one binary message on `/ws/robot`.
    Never queue: if the previous encode or send is still in flight, skip the
@@ -104,8 +114,10 @@ CDN** (the venue may be offline).
    document "keep the twin visible" in your handoff notes.
 
 ## Designed for Phase 3 (don't build it, don't block it)
-- World units in metres. Frame: x forward, y left, z up; `heading` is yaw,
-  counter-clockwise from +x.
+- World units in metres. Frame: x forward, y left, **z up**; `heading` is
+  yaw, counter-clockwise from +x. three.js is y-up by default, so set
+  `THREE.Object3D.DEFAULT_UP.set(0, 0, 1)` before creating anything. The
+  robot model is built z-up too.
 - Keep the camera model explicit: intrinsics come from FOV + resolution, and
   the mount from height + pitch, so it can later be swapped for a
   calibrated real camera.

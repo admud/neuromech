@@ -1,6 +1,6 @@
 # Phase 1B: BCI engine and arbiter
 
-**Agent:** opus3 · **Runs:** Phase 1, in parallel with 1A, 1C–1E
+**Agent:** opus3 (then Phase 2) · **Runs:** Phase 1, in parallel with 1A, 1C–1F
 
 ## Goal
 Everything between the headset and the velocity command: open the board

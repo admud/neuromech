@@ -1,6 +1,6 @@
 # Phase 1C: phone page
 
-**Agent:** opus · **Runs:** Phase 1, in parallel with 1A, 1B, 1D, 1E
+**Agent:** opus (then 1D) · **Runs:** Phase 1, in parallel with 1A, 1B, 1E, 1F
 
 ## Goal
 The page the operator holds: live robot video in the middle, four SSVEP

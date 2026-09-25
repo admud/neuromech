@@ -1,6 +1,6 @@
 # Phase 1A: hub server
 
-**Agent:** sol · **Runs:** Phase 1, in parallel with 1B–1E
+**Agent:** sol · **Runs:** Phase 1, in parallel with 1B–1F
 
 ## Goal
 The PC hub process: serves the phone, dashboard and twin pages, runs the four

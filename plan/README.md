@@ -17,16 +17,21 @@ Until the physical robot is ready, the robot is a **3D virtual robot**
 | 1 | [1A hub server](phases/1a-hub-server.md) | **sol** | Python, FastAPI, uvicorn, asyncio WS; OpenCV | server, 4 WebSockets, video relay, CLI, stub engine, headless robot sim | `hub/__init__.py`, `hub/__main__.py`, `hub/server.py`, `hub/video.py`, `hub/netinfo.py`, `hub/stub_engine.py`, `hub/requirements.txt`, `hub/sim/__init__.py`, `hub/sim/robot_sim.py`, `hub/tests/__init__.py`, `hub/tests/test_server.py`, `hub/tests/test_robot_sim.py` |
 | 1 | [1B BCI engine](phases/1b-bci-engine.md) | **opus3** | Python, numpy/scipy, brainflow/eegnb, pyserial, `ssvep_bci.Decoder` | dongle auto-detect, decoder wiring, arbiter + safety, SSVEP board simulator | `hub/bci/`, `hub/sim/sim_board.py`, `hub/tests/test_arbiter.py`, `hub/tests/test_engine.py`, `hub/tests/test_sim_board.py` |
 | 1 | [1C phone page](phases/1c-phone-client.md) | **opus** | HTML/JS modules, Canvas/WebGL, WebSocket; iOS Safari | time-based flicker at 120 Hz, video, STOP/ARM, frame stats | `web/phone/` |
-| 1 | [1D dashboard](phases/1d-dashboard.md) | **opus2** | HTML/JS modules, WebSocket; twin via iframe | operator dashboard with the twin embedded | `web/dashboard/` |
-| 1 | [1E digital twin](phases/1e-digital-twin.md) | **fable** | three.js (vendored), WebGL, JS modules, WebSocket | 3D arena, virtual robot + physics, FPV camera → video feed, brain-control HUD | `web/twin/` |
-| 2 | [2 integration](phases/2-integration.md) | **opus2** | everything | end-to-end in simulation, fixes, runbook, docs | anything |
-| 3 | [3A RPi robot](phases/3a-rpi-robot.md) | sol | Python on Pi, picamera2, motor driver | real robot on `/ws/robot` | `robot/` |
-| 3 | [3B AR twin](phases/3b-ar-twin.md) | fable | three.js, OpenCV (calibration, ArUco) | virtual walls overlaid on the real camera feed, geofence | `web/twin/`, `hub/tools/` |
+| 1 | [1D dashboard](phases/1d-dashboard.md) | **opus**, after 1C | HTML/JS modules, WebSocket; twin via iframe | operator dashboard with the twin embedded | `web/dashboard/` |
+| 1 | [1E digital twin](phases/1e-digital-twin.md) | **opus2** | three.js (vendored), WebGL, JS modules, WebSocket | 3D arena, virtual robot + physics, FPV camera → video feed, brain-control HUD | `web/twin/` except the two 1F files |
+| 1 | [1F robot model](phases/1f-robot-model.md) | **astra** | three.js primitives, one JS module | our mecanum robot in 3D from the photo, wheel kinematics, preview page | `web/twin/robot_model.js`, `web/twin/model.html` |
+| 2 | [2 integration](phases/2-integration.md) | **opus3**, after 1B | everything | end-to-end in simulation, fixes, runbook, docs | anything |
+| 3 | [3A RPi robot](phases/3a-rpi-robot.md) | sol | Python on Pi Zero, picamera2, GPIO → L298N | real robot on `/ws/robot` | `robot/` |
+| 3 | [3B AR twin](phases/3b-ar-twin.md) | opus2 | three.js, OpenCV (calibration, ArUco) | virtual walls overlaid on the real camera feed, geofence | `web/twin/`, `hub/tools/` |
+| all | [Reviews](#reviews) | **fable** | read-only | code review of each track at handoff | none |
 
-Phase 1 is five parallel tracks. Phase 2 starts when all five are done.
-Phase 3 is after the demo pipeline works and the robot exists, and is only
-outlined for now. astra isn't assigned: nothing here is worth its cost and
-latency. It's kept in reserve for a hard, narrow problem.
+Phase 1 is six tracks run by five agents (opus does 1C then 1D). Phase 2
+starts when all of Phase 1 is done and reviewed. Phase 3 is after the demo
+pipeline works and the robot exists, and is only outlined for now.
+
+**Why astra gets 1F and nothing else:** it's expensive on input and slow.
+1F is narrow, with small input (one photo, one contract), and it's pure
+spatial reasoning, which is where astra is worth the cost.
 
 ## How the pieces link
 
@@ -38,7 +43,7 @@ latency. It's kept in reserve for a hard, narrow problem.
                     /ws/phone│  /ws/video   │ /ws/dashboard│   /ws/robot│
                              │  (JPEG)      │ (state)      │ cmd ↓ JPEG+pose ↑
                              ▼              ▼              ▼            ▼
-                     phone page (1C)   dashboard (1D) ──iframe──► twin (1E)
+                     phone page (1C)   dashboard (1D) ──iframe──► twin (1E) ◄── robot model (1F)
                      flicker + video    scores, arm,      mode=robot: IS the robot
                                         tuning, override  mode=view: follows the robot
                                                                  ▲
@@ -53,11 +58,13 @@ latency. It's kept in reserve for a hard, narrow problem.
 | `/ws/robot` | 1A ↔ 1E (and robot_sim, RPi) | `cmd` at 10 Hz in; JPEG frames + pose telemetry out; watchdog |
 | `/ws/dashboard` read-only | 1A → 1E | `state` for the 3D HUD |
 | iframe + `postMessage` | 1D ↔ 1E | `/twin/?embed=1&mode=robot\|view`; twin forwards STOP keys |
+| `createRobotModel` / `mecanumWheelSpeeds` JS API | 1F → 1E (and 3A for motor mixing) | contract in [1f-robot-model.md](phases/1f-robot-model.md). 1E uses a placeholder until 1F lands. |
 | world file | 1E → 3B, hub | `web/twin/worlds/default.json` |
 
 Every Phase 1 track can be built and tested on its own: 1A with a stub
 engine, 1B with the SSVEP simulator, 1C/1D in `?demo=1` then against
-`python -m hub --stub`, 1E against the stub hub.
+`python -m hub --stub`, 1E against the stub hub with a placeholder robot,
+1F in its own preview page.
 
 ## Rules for every agent
 
@@ -67,7 +74,7 @@ engine, 1B with the SSVEP simulator, 1C/1D in `?demo=1` then against
 - Only **1A (sol)** installs Python packages (`fastapi`, `uvicorn` into
   `control/.venv`, recorded in `hub/requirements.txt`). Others use what's
   installed (numpy, scipy, brainflow, websockets, opencv-python). 1E vendors
-  three.js with npm into `web/twin/vendor/`.
+  three.js with npm into `web/twin/vendor/` (1F uses the same copy).
 - Run hub code from the repo root: `control/.venv/Scripts/python.exe -m hub ...`
 
 **Git: one shared working tree, branch `feat/teleop`**
@@ -91,6 +98,21 @@ engine, 1B with the SSVEP simulator, 1C/1D in `?demo=1` then against
   (what exists, how to run it, anything unfinished) and committed it.
 - You tagged @main once in the channel with a two-line summary.
 
+## Reviews
+
+fable only reviews code; it doesn't build. When a track hands off, @main
+asks fable to review it. fable sends its findings to the track's owner and
+@main, the owner fixes them, and only then is the track done. Focus by track:
+
+| Track | Review focus |
+|---|---|
+| 1A | send loops can't die on a bad client; video relay never queues; robot `cmd` always at 10 Hz |
+| 1B | every safety rule in protocol.md; thread safety; no `input()` path; decode counted once |
+| 1C | flicker is time-based and exact per target; no per-frame allocation; video can't stall flicker |
+| 1D | STOP works from every path including the twin iframe; override expiry |
+| 1E | watchdog; FPV frames never queue; axis signs; Z-up consistency |
+| 1F | kinematics signs vs roller handedness; frame/units contract |
+
 ## Status
 
 | Track | State |
@@ -101,7 +123,8 @@ engine, 1B with the SSVEP simulator, 1C/1D in `?demo=1` then against
 | 1C phone page | not started |
 | 1D dashboard | not started |
 | 1E digital twin | not started |
-| 2 integration | blocked on 1A–1E |
+| 1F robot model | not started |
+| 2 integration | blocked on 1A–1F + reviews |
 | 3A RPi robot | later: needs the robot |
 | 3B AR twin | later: needs the robot camera |
 
