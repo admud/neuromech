@@ -83,6 +83,7 @@ References: Chen et al. 2015 (FBCCA), Nakanishi et al. 2018 (TRCA).
 | `ssvep_calibrate.py` | Collect cued, phase-aligned calibration trials → `.npz` |
 | `ssvep_trca.py` | Decoder library (CCA, TRCA-CCA, TRCA) |
 | `ssvep_eval.py` | Offline cross-validated decoder comparison + ITR |
+| `ssvep_eval_live.py` | Replays a calibration file the way the hub drives: sliding windows, gaze switches, margin + dwell; reports correct / wrong / idle time. Notches 50 Hz mains by default |
 | `run_ssvep.py` | Run EEG-ExPy's standard visual SSVEP experiment on the Cyton |
 | `ssvep_check.py` | PSD/SNR plot of a `run_ssvep.py` recording |
 | `occipital_check.py` | Terminal signal-quality monitor for O1/O2/P7/P8 |
