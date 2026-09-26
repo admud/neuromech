@@ -26,6 +26,12 @@ def parse_args(argv=None):
     parser.add_argument("--mode", default="trca_cca")
     parser.add_argument("--http-port", type=int, default=8765)
     parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--control", choices=("hold", "latch"), default="hold",
+                        help="hold: gaze drives while held; latch: gaze selects, a jaw clench latches/stops")
+    parser.add_argument("--clench-threshold", type=float, default=8.0,
+                        help="clench detector robust-z threshold (record_clench analyze suggests one)")
+    parser.add_argument("--latch-max", type=float, default=3.0,
+                        help="seconds a latch lasts at most before it releases itself")
     parser.add_argument("--stub", action="store_true")
     parser.add_argument("--virtual-robot", action="store_true",
                         help="also run the CPU-rendered virtual robot (hub.sim.virtual), no browser needed")
@@ -96,7 +102,10 @@ def main(argv=None):
         settings = EngineSettings(device=args.device, port=args.port, freqs=args.freqs,
                                   window_s=args.window, margin=args.margin,
                                   dwell=args.dwell, speed=args.speed,
-                                  model_path=args.model, mode=args.mode)
+                                  model_path=args.model, mode=args.mode,
+                                  control_mode=args.control,
+                                  clench_threshold=args.clench_threshold,
+                                  latch_max_s=args.latch_max)
         engine = BciEngine(settings)
     try:
         engine.start()

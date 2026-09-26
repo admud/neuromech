@@ -61,7 +61,8 @@ hub/                    PC hub, Python package, run as `python -m hub`
   stub_engine.py        fake BciEngine for UI work (`--stub`)
   gui/                  desktop operator display (psychopy): full-screen video + 4 flicker circles; `python -m hub.gui`
   ugv/                  UGV bridge: hub `cmd` -> the Pi's UDP FWD/BACK/LEFT/RIGHT/STOP (port 5005); `python -m hub.ugv`
-  bci/                  board open + dongle auto-detect, decoder wiring, arbiter (safety)
+  bci/                  board open + dongle auto-detect, decoder wiring, arbiter (safety, hold/latch),
+                        clench.py (jaw-clench EMG detector), record_clench.py (recorder + analyze)
   sim/                  sim_board.py (fake EEG with SSVEP), robot_sim.py (headless robot, RPi template),
                         virtual.py (browser-free virtual robot: CPU/OpenCV first-person render of the twin's world)
   tests/                pytest
@@ -105,6 +106,9 @@ control\.venv\Scripts\python -m hub                    # real headset, dongle au
 control\.venv\Scripts\python -m hub --device sim       # fake EEG; drive via dashboard "sim gaze"
 control\.venv\Scripts\python -m hub --stub             # fake engine, for UI work
 control\.venv\Scripts\python -m hub --window 2 --virtual-robot   # hub + the Python virtual robot (no browser); keep the dashboard's Virtual robot switch OFF
+control\.venv\Scripts\python -m hub --control latch    # latch mode: look to select, jaw clench to go/stop (default: hold)
+control\.venv\Scripts\python -m hub.bci.record_clench --out clench_s1.npz   # 2-min cued clench recording (hub stopped)
+control\.venv\Scripts\python -m hub.bci.record_clench analyze clench_s1.npz # clench vs rest z, suggested --clench-threshold
 control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
 control\.venv\Scripts\python -m hub.ugv --host NeuroMech.local   # drive the real rover (use the Pi's IP if .local fails); replaces robot_sim
 control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check

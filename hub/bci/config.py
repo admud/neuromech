@@ -18,3 +18,8 @@ class EngineSettings:
     interval_s: float = 0.25         # decode period
     model_path: str | None = None    # optional ssvep_calibrate.py .npz
     mode: str = "trca_cca"           # scorer used with model_path
+    # Phase 6: jaw-clench latch
+    control_mode: str = "hold"       # "hold" (gaze drives) | "latch" (gaze selects, clench toggles)
+    clench_threshold: float = 8.0    # robust z of the EMG envelope
+    latch_max_s: float = 3.0         # a latch releases itself after this long
+    clench_channels: list[str] = field(default_factory=lambda: ["Fp1", "Fp2", "P7", "P8"])

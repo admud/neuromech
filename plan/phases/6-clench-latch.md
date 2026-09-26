@@ -112,3 +112,89 @@ threshold.
    the dashboard or CLI?
 5. Can you do a 2-minute clench recording with the Cyton (the recorder
    guides you) so the threshold is tuned on your real data?
+
+## Handoff notes: engine side (opus3)
+
+**Recorder:** `python -m hub.bci.record_clench [--port COMx] --out clench_s1.npz` (a4bc400).
+- The hub must be stopped first.
+- It takes about 2 minutes, cued by text and beeps: 20 s rest, 10 cued clenches (high beep =
+  clench and hold ~1 s, low = relax), 20 s of look + clench, then 10 s of blinking without clenching.
+- It saves the raw EEG of every channel, fs, channel names and markers, and never overwrites a file.
+- `--device sim` works too: it injects the clenches, and the tests use it.
+- `... analyze FILE [--channels ..] [--threshold z]` streams the file through the live detector in
+  engine-sized chunks. It reports:
+  - peak z per cue, and rest/relax/blink p99 and max;
+  - a suggested threshold: the geometric mean of the loudest calm moment and the weakest clench;
+  - at 8 and at the suggestion: detections, double-fires and false alarms per minute.
+- The cue windows allow 0.8 s of reaction time.
+
+**Detector** (`hub/bci/clench.py`):
+- Chain: notch 50 + 100 Hz → 30 Hz 4th-order high-pass (causal, filter state started at the first
+  sample's DC) → TKEO → 50 ms envelope → per-channel robust z. The baseline is median/MAD over
+  8 s and learns only while calm.
+- Combining channels and firing:
+  - channels are combined by the **2nd-largest z**, so one bad electrode or cable bump can't fire it;
+  - it fires after 50 ms above the threshold.
+- Changes from the Muse code, each with a test:
+  - It fires **once per burst**: it re-arms only after z has stayed below threshold/2 for 100 ms,
+    plus the 0.4 s refractory. The Muse version re-fires every 0.4 s during a held clench, which
+    would latch and then immediately unlatch.
+  - The notch is **wide (Q=5)**. With Q=30, a mains level ramping over 0.5 s leaked through the
+    notch's sidebands and fired against the very quiet >30 Hz baseline.
+  - Known limit: mains pickup that jumps about 10× in a single sample still rings the notch and
+    can fire once.
+- It runs every engine tick (50 ms) on the samples since the last pass. It finds them by locating
+  the last column it saw in `get_current_board_data`, because draining would starve the decoder.
+- Channels: `EngineSettings.clench_channels` (Fp1, Fp2, P7, P8), falling back to the first four.
+  `OpenBoard` now carries `all_rows` / `all_names`.
+
+**Arbiter** (`control_mode` "hold" | "latch"):
+- In latch mode gaze only previews.
+- A clench latches the newest **dwelled** winner decoded in the 0.5 s *before* the clench's onset.
+  Decodes after the onset are skipped, because the clench's EMG is in their window.
+- If there's no such winner, the result is `no_target`.
+- A clench while latched always stops.
+- A latch also releases on:
+  - STOP;
+  - any disarm or auto-disarm;
+  - a mode change;
+  - `latch_max_s` (checked in the engine loop and in `command()`).
+- Clenches while disarmed report `not_armed` and latch nothing. Re-arming never restores a latch.
+- The override beats the latch while held; the latch resumes afterwards if time is left.
+- In hold mode clenches are detected and counted (`hold_mode`) but do nothing.
+
+**Protocol/CLI:**
+- All optional, documented in protocol.md: `state.control_mode`, `latched`, `latch` {elapsed_s,
+  max_s, left_s}, `clench` {z, threshold, count, fired_at, last {t, result, direction}, channels},
+  and `params` + `set_config` gain `control_mode` / `clench_threshold` (1–500) /
+  `latch_max_s` (0.5–30).
+- `sim_clench` is dashboard only and `--device sim` only; `server.py` routes it.
+- CLI: `--control hold|latch` (default hold), `--clench-threshold 8`, `--latch-max 3`.
+
+**Tests** (134 pass in `pytest hub/tests`):
+- `test_clench.py`, the detector:
+  - no fires on 60 s of EEG, mains ramps, Cyton DC offsets, blinks, or single-channel steps/spikes;
+  - 10/10 bursts fire once each, within 120 ms of onset;
+  - a 2.5 s clench fires once;
+  - a weak (8 µV) clench is detected;
+  - two quick clenches both fire;
+  - the result doesn't depend on chunk size;
+  - the recorder + analyze round trip on sim.
+- 12 arbiter latch tests.
+- 13 engine latch tests on the sim: preview, latch then gaze wanders, clench stops, clench-to-motion
+  < 0.4 s, not_armed, no_target, STOP / phone_lost / latch_max release, mode switch, override,
+  validation, source checks.
+
+**Sim end to end through the real hub** (`--device sim --control latch`, robot_sim; never the rover):
+- preview holds the robot at vx 0;
+- clench → robot vx 0.3 after **0.22 s**;
+- vx stays 0.3 for 4 s while gaze sits on another target;
+- a second clench stops it in **0.31 s**;
+- STOP while latched releases in 0.2 s;
+- no false clenches in sim rest.
+
+**Not done:**
+- Real-data tuning: waiting for the user's `clench_s1.npz`. Run `analyze` on it and pass
+  `--clench-threshold` (or set it live).
+- Whether a real clench's EMG disturbs the SSVEP decode right after it is unknown. Latch mode
+  doesn't use those decodes, but hold mode does.

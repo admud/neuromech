@@ -12,7 +12,8 @@ from hub.bci.config import EngineSettings
 from hub.bci.engine import BciEngine, SeqDecoder
 
 ENGINE_KEYS = {"armed", "disarm_reason", "winner", "scores", "command", "dwell",
-               "decode_ms", "params", "eeg", "sim", "warnings"}
+               "decode_ms", "params", "eeg", "sim", "warnings",
+               "control_mode", "latched", "latch", "clench"}  # Phase 6 (optional)
 
 
 def wait_for(pred, timeout, step=0.05):
@@ -54,7 +55,8 @@ def test_synthetic_start_stop_and_status_shape():
         assert list(st["scores"]) == ["up", "down", "left", "right"]
         assert set(st["command"]) == {"vx", "vy", "direction", "source"}
         assert set(st["dwell"]) == {"direction", "count", "needed"}
-        assert st["params"] == {"window_s": 3.0, "margin": 0.08, "dwell": 2, "speed": 0.3}
+        assert st["params"] == {"window_s": 3.0, "margin": 0.08, "dwell": 2, "speed": 0.3,
+                                "control_mode": "hold", "clench_threshold": 8.0, "latch_max_s": 3.0}
         eeg = st["eeg"]
         assert eeg["device"] == "synthetic" and eeg["fs"] == 250 and eeg["ok"] is True
         assert len(eeg["channels"]) == 4 and eeg["stalled_s"] < 1.0
@@ -133,7 +135,9 @@ def test_set_config_applies(sim_engine):
     cid = e.config_message()["config_id"]
     assert e.handle({"type": "set_config", "dwell": 3, "speed": 0.5, "window_s": 2.0,
                      "margin": 0.08}, "dashboard") is False  # freqs unchanged
-    assert e.status()["params"] == {"window_s": 2.0, "margin": 0.08, "dwell": 3, "speed": 0.5}
+    p = e.status()["params"]
+    assert {k: p[k] for k in ("window_s", "margin", "dwell", "speed")} == {
+        "window_s": 2.0, "margin": 0.08, "dwell": 3, "speed": 0.5}
     assert e.status()["dwell"]["needed"] == 3
     assert e.config_message()["config_id"] == cid
     # freqs change: True, new config_id, sim board follows, same freqs again: False
@@ -407,3 +411,169 @@ def test_frozen_process_disarms_on_resume(sim_engine):
     e._loop_thread.start()
     assert wait_for(lambda: not e.status()["armed"], 1.0)
     assert e.status()["disarm_reason"] == "eeg_stall"
+
+
+# ---- Phase 6: clench latch -----------------------------------------------
+
+@pytest.fixture
+def latch_engine():
+    e = BciEngine(EngineSettings(device="sim", control_mode="latch"))
+    e.settle_s = 0.2
+    e.start()
+    yield e
+    e.stop()
+
+
+def clench_and_wait(e, count_before=None, timeout=1.5):
+    n = e.status()["clench"]["count"] if count_before is None else count_before
+    e.handle({"type": "sim_clench"}, "dashboard")
+    assert wait_for(lambda: e.status()["clench"]["count"] > n, timeout), "clench not detected"
+    return e.status()["clench"]["last"]
+
+
+def latch_on(e, target):
+    e.handle({"type": "sim_gaze", "target": target}, "dashboard")
+    assert wait_for(lambda: e.status()["dwell"]["direction"] == target
+                    and e.status()["dwell"]["count"] >= 2, 8.0)
+    assert e.command()["direction"] is None                 # preview only
+    last = clench_and_wait(e)
+    assert last["result"] == "latched" and last["direction"] == target, last
+    return last
+
+
+def test_latch_status_shape(latch_engine):
+    st = latch_engine.status()
+    assert st["control_mode"] == "latch" and st["latched"] is None and st["latch"] is None
+    assert set(st["clench"]) == {"z", "threshold", "count", "fired_at", "last", "channels"}
+    assert st["clench"]["channels"] == ["Fp1", "Fp2", "P7", "P8"]
+    assert st["params"]["control_mode"] == "latch"
+    assert st["params"]["clench_threshold"] == 8.0 and st["params"]["latch_max_s"] == 3.0
+
+
+def test_sim_rest_has_no_false_clenches(latch_engine):
+    time.sleep(4.0)
+    st = latch_engine.status()
+    assert st["clench"]["count"] == 0 and st["clench"]["z"] < 8
+
+
+def test_latch_end_to_end_gaze_free_then_clench_stops(latch_engine):
+    e = latch_engine
+    e.handle({"type": "set_config", "latch_max_s": 10.0}, "dashboard")
+    assert arm(e)
+    latch_on(e, "up")
+    c = e.command()
+    assert (c["direction"], c["vx"], c["vy"]) == ("up", 0.3, 0.0)
+    st = e.status()
+    assert st["latched"] == "up" and 0 < st["latch"]["left_s"] <= 10.0
+    e.handle({"type": "sim_gaze", "target": "left"}, "dashboard")   # gaze wanders
+    time.sleep(2.5)
+    assert e.command()["direction"] == "up"
+    last = clench_and_wait(e)
+    assert last["result"] == "unlatched"
+    c = e.command()
+    assert (c["direction"], c["vx"], c["vy"]) == (None, 0.0, 0.0)
+
+
+def test_clench_latency_is_short(latch_engine):
+    e = latch_engine
+    assert arm(e)
+    e.handle({"type": "sim_gaze", "target": "down"}, "dashboard")
+    assert wait_for(lambda: e.status()["dwell"]["count"] >= 2, 8.0)
+    t0 = time.monotonic()
+    e.handle({"type": "sim_clench"}, "dashboard")
+    assert wait_for(lambda: e.command()["direction"] == "down", 1.0, step=0.01)
+    assert time.monotonic() - t0 < 0.4
+
+
+def test_clench_while_disarmed_does_nothing(latch_engine):
+    e = latch_engine
+    e.handle({"type": "sim_gaze", "target": "up"}, "dashboard")
+    assert wait_for(lambda: e.status()["dwell"]["count"] >= 2, 8.0)
+    assert clench_and_wait(e)["result"] == "not_armed"
+    assert e.status()["latched"] is None
+    assert arm(e)
+    assert e.command()["direction"] is None                 # arming doesn't pick it up
+
+
+def test_clench_with_no_target(latch_engine):
+    e = latch_engine
+    assert arm(e)
+    time.sleep(1.0)
+    assert clench_and_wait(e)["result"] == "no_target"
+    assert e.command()["direction"] is None
+
+
+def test_stop_releases_latch(latch_engine):
+    e = latch_engine
+    assert arm(e)
+    latch_on(e, "right")
+    e.handle({"type": "arm", "armed": False}, "phone")
+    st = e.status()
+    assert st["latched"] is None and st["command"]["direction"] is None
+    assert arm(e)
+    assert e.command()["direction"] is None                 # re-arming doesn't restore it
+
+
+def test_auto_disarm_releases_latch(latch_engine):
+    e = latch_engine
+    e.set_phone_connected(True)
+    assert arm(e)
+    latch_on(e, "left")
+    e.set_phone_connected(False)
+    st = e.status()
+    assert st["disarm_reason"] == "phone_lost" and st["latched"] is None
+
+
+def test_latch_max_releases(latch_engine):
+    e = latch_engine
+    assert e.handle({"type": "set_config", "latch_max_s": 1.0}, "dashboard") is False
+    assert arm(e)
+    latch_on(e, "up")
+    assert wait_for(lambda: e.status()["latched"] is None, 1.6)
+    assert e.command()["direction"] is None
+
+
+def test_mode_switch_releases_latch_and_hold_mode_ignores_clench(latch_engine):
+    e = latch_engine
+    assert arm(e)
+    latch_on(e, "up")
+    e.handle({"type": "set_config", "control_mode": "hold"}, "dashboard")
+    st = e.status()
+    assert st["control_mode"] == "hold" and st["latched"] is None
+    # in hold mode gaze drives again, and a clench changes nothing
+    assert wait_for(lambda: e.command()["direction"] == "up", 3.0)
+    time.sleep(1.0)                        # let the first burst end: one burst = one clench
+    assert clench_and_wait(e)["result"] == "hold_mode"
+    assert e.command()["direction"] == "up"
+
+
+def test_override_beats_latch(latch_engine):
+    e = latch_engine
+    e.handle({"type": "set_config", "latch_max_s": 10.0}, "dashboard")
+    assert arm(e)
+    latch_on(e, "up")
+    e.handle({"type": "override", "direction": "right"}, "dashboard")
+    assert e.command()["source"] == "override"
+    time.sleep(0.6)
+    assert e.command()["direction"] == "up"
+
+
+def test_latch_config_validation(latch_engine):
+    e = latch_engine
+    before = e.status()["params"]
+    for body in ({"control_mode": "toggle"}, {"clench_threshold": 0.5},
+                 {"clench_threshold": 1000}, {"latch_max_s": 0.1}, {"latch_max_s": 60},
+                 {"latch_max_s": "3"}):
+        assert e.handle({"type": "set_config", **body}, "dashboard") is False
+        assert e.status()["params"] == before, body
+    e.handle({"type": "set_config", "clench_threshold": 20.0}, "dashboard")
+    assert e.status()["clench"]["threshold"] == 20.0 and e._clench.threshold == 20.0
+
+
+def test_sim_clench_only_from_dashboard_with_sim(latch_engine):
+    e = latch_engine
+    e.handle({"type": "sim_clench"}, "phone")
+    time.sleep(0.5)
+    assert e.status()["clench"]["count"] == 0
+    s = BciEngine(EngineSettings(device="synthetic"))
+    s.handle({"type": "sim_clench"}, "dashboard")          # not sim: ignored, no error

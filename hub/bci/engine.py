@@ -15,7 +15,8 @@ import time
 import numpy as np
 
 from . import board as boardmod   # also puts control/ on sys.path via hub.bci
-from .arbiter import Arbiter
+from .arbiter import MODES, Arbiter
+from .clench import ClenchDetector, pick_clench_channels
 from .config import DIRECTIONS, EngineSettings
 
 from ssvep_bci import Decoder, harmonic_clashes  # noqa: E402  (control/, read-only)
@@ -26,7 +27,9 @@ QUALITY_S = 1.0
 RAIL_UV = 180000.0     # the Cyton rails at +-187500 µV
 MAX_FREQ_WARN = 40.0   # 120 Hz / 3: fewer than 3 frames per cycle on the phone
 
-LIMITS = {"window_s": (0.5, 6.0), "margin": (0.0, 1.0), "dwell": (1, 10), "speed": (0.0, 1.0)}
+LIMITS = {"window_s": (0.5, 6.0), "margin": (0.0, 1.0), "dwell": (1, 10), "speed": (0.0, 1.0),
+          "clench_threshold": (1.0, 500.0), "latch_max_s": (0.5, 30.0)}
+CLENCH_Z_SHOW_S = 0.2  # state.clench.z is the peak over this long, so a meter sees bursts
 FREQ_RANGE = (5.0, 40.0)
 
 
@@ -65,7 +68,8 @@ class BciEngine:
     def __init__(self, settings: EngineSettings) -> None:
         self.settings = settings
         self._lock = threading.Lock()
-        self._arbiter = Arbiter(settings.dwell, settings.speed)
+        self._arbiter = Arbiter(settings.dwell, settings.speed, settings.control_mode,
+                                settings.latch_max_s)
 
         self._armed = False
         self._disarm_reason = "startup"
@@ -90,6 +94,16 @@ class BciEngine:
         self._mode = "cca"
         self._model_warning = None
 
+        # Phase 6 clench detection (the detector itself is engine-loop only)
+        self._clench = None         # ClenchDetector once started
+        self._clench_rows = []
+        self._clench_names = []
+        self._clench_seen = None    # last board column fed to the detector
+        self._clench_z = []         # (t, peak z) of recent passes
+        self._clench_count = 0
+        self._clench_fired_at = None
+        self._clench_event = None   # {"t", "result", "direction"}
+
         self._decoder = None
         self._gen = 0               # bumps on every decoder-affecting change
         self._rebuild = False
@@ -104,6 +118,10 @@ class BciEngine:
                                              ob.fs, ", ".join(ob.ch_names)))
         if s.model_path:
             self._load_model(ob)
+        self._clench_names, self._clench_rows = pick_clench_channels(
+            ob.all_names or ob.ch_names, ob.all_rows or ob.ch_rows, s.clench_channels)
+        self._clench = ClenchDetector(ob.fs, len(self._clench_rows), threshold=s.clench_threshold)
+        _log("clench detection on %s, %s mode" % (", ".join(self._clench_names), s.control_mode))
         ob.board.start_stream()
         with self._lock:
             self._ob = ob
@@ -161,7 +179,10 @@ class BciEngine:
                 "dwell": self._arbiter.dwell_status(),
                 "decode_ms": round(self._decode_ms, 1),
                 "params": {"window_s": s.window_s, "margin": s.margin,
-                           "dwell": s.dwell, "speed": s.speed},
+                           "dwell": s.dwell, "speed": s.speed,
+                           "control_mode": s.control_mode,
+                           "clench_threshold": s.clench_threshold,
+                           "latch_max_s": s.latch_max_s},
                 "eeg": {"device": s.device, "port": ob.port if ob else s.port,
                         "fs": ob.fs if ob else None,
                         "channels": list(ob.ch_names) if ob else [],
@@ -169,6 +190,15 @@ class BciEngine:
                         "quality": list(self._quality)},
                 "sim": {"gaze": self._sim_gaze} if s.device == "sim" else None,
                 "warnings": self._warnings(),
+                "control_mode": s.control_mode,
+                "latched": self._arbiter.latched,
+                "latch": self._arbiter.latch_status(now),
+                "clench": {"z": round(max([z for t, z in self._clench_z
+                                            if now - t <= CLENCH_Z_SHOW_S] or [0.0]), 1),
+                           "threshold": s.clench_threshold, "count": self._clench_count,
+                           "fired_at": self._clench_fired_at,
+                           "last": dict(self._clench_event) if self._clench_event else None,
+                           "channels": list(self._clench_names)},
             }
 
     def command(self) -> dict:
@@ -199,6 +229,8 @@ class BciEngine:
                 self._handle_override(msg)
             elif kind == "sim_gaze" and source == "dashboard":
                 self._handle_sim_gaze(msg)
+            elif kind == "sim_clench" and source == "dashboard":
+                self._handle_sim_clench(msg)
             elif kind == "set_config" and source == "dashboard":
                 return self._handle_set_config(msg)
         except (TypeError, ValueError, KeyError) as exc:
@@ -223,6 +255,7 @@ class BciEngine:
                 # A direction must dwell afresh after arming.
                 self._arbiter.reset_dwell()
                 self._arbiter.clear_override()
+                self._arbiter.unlatch()
             self._armed = True
             self._disarm_reason = None
 
@@ -246,6 +279,14 @@ class BciEngine:
             self._sim_gaze = target
         ob.board.set_gaze(None if target is None else DIRECTIONS.index(target))
 
+    def _handle_sim_clench(self, msg):
+        dur = min(2.0, max(0.1, _num(msg.get("duration_s", 0.6), "duration_s")))
+        with self._lock:
+            ob = self._ob
+            if self.settings.device != "sim" or ob is None:
+                return
+        ob.board.clench(dur)
+
     def _handle_set_config(self, msg):
         with self._lock:
             new = self._validate(msg)   # raises before anything changes
@@ -257,6 +298,13 @@ class BciEngine:
                 setattr(s, k, v)
             self._arbiter.dwell = s.dwell
             self._arbiter.speed = s.speed
+            self._arbiter.latch_max_s = s.latch_max_s
+            if s.control_mode != self._arbiter.mode:
+                self._arbiter.mode = s.control_mode
+                self._arbiter.unlatch()
+                _log("control mode: %s" % s.control_mode)
+            if self._clench is not None:
+                self._clench.threshold = s.clench_threshold
             if "dwell" in new:
                 self._arbiter.reset_dwell()
             if decoder_changed:
@@ -290,6 +338,10 @@ class BciEngine:
             if len({round(freqs[d], 6) for d in DIRECTIONS}) != len(DIRECTIONS):
                 raise ValueError("freqs must be distinct")
             out["freqs"] = {d: freqs[d] for d in DIRECTIONS}
+        if "control_mode" in msg:
+            if msg["control_mode"] not in MODES:
+                raise ValueError("control_mode must be hold or latch")
+            out["control_mode"] = msg["control_mode"]
         for key, (lo, hi) in LIMITS.items():
             if key not in msg:
                 continue
@@ -361,7 +413,7 @@ class BciEngine:
             self._winner = None if winner is None else DIRECTIONS[winner]
             self._decode_ms = decode_ms
             self._last_decode_t = time.monotonic()
-            self._arbiter.on_decode(self._winner)
+            self._arbiter.on_decode(self._winner, self._last_decode_t)
 
     # ---- engine loop -----------------------------------------------------
     def _loop(self):
@@ -399,6 +451,10 @@ class BciEngine:
                     self._last_sample = col.copy()
                     self._last_change_t = time.monotonic()
             self._check_stall(time.monotonic())
+            if self._arbiter.expire(time.monotonic()):
+                _log("latch released: latch_max_s")
+
+        self._clench_tick(ob)
 
         if do_quality:
             data = ob.board.get_current_board_data(int(ob.fs))
@@ -410,6 +466,47 @@ class BciEngine:
                               "railed": bool(np.max(np.abs(x)) > RAIL_UV)})
             with self._lock:
                 self._quality = q
+
+    def _clench_tick(self, ob):
+        """Feed the clench detector the samples that arrived since the last pass."""
+        det = self._clench
+        if det is None:
+            return
+        data = ob.board.get_current_board_data(int(ob.fs))
+        if data.shape[1] == 0:
+            return
+        new = data
+        if self._clench_seen is not None:
+            # get_current_board_data doesn't consume (the decoder reads the same
+            # buffer), so find the last column already seen. Not found = more
+            # than 1 s since the last pass: take the whole second.
+            hits = np.nonzero(np.all(data == self._clench_seen[:, None], axis=0))[0]
+            if hits.size:
+                new = data[:, hits[-1] + 1:]
+        if new.shape[1] == 0:
+            return
+        self._clench_seen = data[:, -1].copy()
+        t_read = time.monotonic()
+        fires = det.update(new[self._clench_rows])
+        with self._lock:
+            self._clench_z = [(t, z) for t, z in self._clench_z if t_read - t <= 1.0]
+            self._clench_z.append((t_read, det.z_peak))
+            for off in fires:
+                onset = t_read - (new.shape[1] - off) / ob.fs
+                self._on_clench(onset, t_read)
+
+    def _on_clench(self, onset, now):
+        """One detected clench. Caller holds the lock."""
+        self._clench_count += 1
+        self._clench_fired_at = now
+        if self._arbiter.mode != "latch":
+            result, d = "hold_mode", None
+        elif not self._armed:
+            result, d = "not_armed", None   # nothing may latch while disarmed
+        else:
+            result, d = self._arbiter.clench(onset, now)
+        self._clench_event = {"t": now, "result": result, "direction": d}
+        _log("clench #%d: %s%s" % (self._clench_count, result, " " + d if d else ""))
 
     # ---- helpers (caller holds the lock) ---------------------------------
     def _stalled_s(self, now):
@@ -430,6 +527,7 @@ class BciEngine:
             self._armed = False
             self._disarm_reason = reason
             self._arbiter.clear_override()
+            self._arbiter.unlatch()
 
     def _command(self, now):
         s = self.settings

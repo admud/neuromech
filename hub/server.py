@@ -161,7 +161,7 @@ def create_app(engine, http_port=8765):
             while True:
                 msg = await receive_json(ws)
                 kind = msg.get("type")
-                if kind in ("arm", "set_config", "override", "sim_gaze"):
+                if kind in ("arm", "set_config", "override", "sim_gaze", "sim_clench"):
                     if engine.handle(msg, "dashboard"):
                         await broadcast_config()
                 elif kind == "ping":

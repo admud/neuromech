@@ -92,6 +92,24 @@ they need and ignore the rest. Fields marked *engine* come from
 ```
 (`//` comments are documentation only; real messages are plain JSON.)
 
+### Phase 6 `state` fields (optional, engine)
+Jaw-clench latch. Clients that don't know them ignore them.
+```json
+{"control_mode": "latch",                 // "hold" (gaze drives) | "latch" (gaze selects, clench toggles)
+ "latched": "up",                         // latched direction, or null
+ "latch": {"elapsed_s": 1.2, "max_s": 3.0, "left_s": 1.8},   // null unless latched
+ "clench": {"z": 2.1,                     // peak combined EMG z over the last 0.2 s
+            "threshold": 8.0, "count": 4,
+            "fired_at": 1234.1,           // hub monotonic time of the last clench, or null
+            "last": {"t": 1234.1, "result": "latched", "direction": "up"},
+            "channels": ["Fp1", "Fp2", "P7", "P8"]},
+ "params": {"control_mode": "latch", "clench_threshold": 8.0, "latch_max_s": 3.0, "...": "..."}}
+```
+- `clench.last.result`: `latched`, `unlatched`, `no_target` (no dwelled
+  winner in the 0.5 s before the clench), `not_armed`, `hold_mode` (detected
+  but hold mode ignores clenches). `last` is null until the first clench.
+- While latched, `command.source` is `"bci"`.
+
 ### `pong`
 Reply to `ping`: `{"type": "pong", "t_client": 17.2, "t_hub": 1234.5}`.
 
@@ -112,9 +130,10 @@ median interval.
 | type | body | effect |
 |---|---|---|
 | `arm` | `{"armed": bool}` | same as phone |
-| `set_config` | any subset of `{"freqs": {"up": 11, ...}, "window_s": 2.0, "margin": 0.05, "dwell": 3, "speed": 0.4}` | engine validates, applies, hub rebroadcasts `config` if freqs changed |
+| `set_config` | any subset of `{"freqs": {"up": 11, ...}, "window_s": 2.0, "margin": 0.05, "dwell": 3, "speed": 0.4}`, plus (Phase 6) `control_mode` `"hold"`/`"latch"`, `clench_threshold` 1–500, `latch_max_s` 0.5–30 | engine validates, applies, hub rebroadcasts `config` if freqs changed |
 | `override` | `{"direction": "up"\|"down"\|"left"\|"right"\|null}` | keyboard drive. Resend every 200 ms while a key is held; expires 500 ms after the last message. Needs `armed`. Beats BCI. |
 | `sim_gaze` | `{"target": "up"\|...\|null}` | only with `--device sim`: which target the simulated user looks at |
+| `sim_clench` | `{}` or `{"duration_s": 0.6}` | only with `--device sim`: inject a jaw-clench EMG burst (Phase 6) |
 | `ping` | `{"t_client": ...}` | hub replies `pong` |
 
 ## Robot ⇄ hub (`/ws/robot`)
@@ -187,6 +206,12 @@ The dashboard treats these exactly like its own key events (Esc/Space = STOP).
   - robot disconnects → `robot_lost`
 - Re-arming is always an explicit user action.
 - While armed with no confident, dwelled winner and no override → `vx = vy = 0`.
+- Latch mode (Phase 6): gaze alone never moves the robot. A clench latches
+  the dwelled winner from the 0.5 s before it; a clench while latched always
+  stops. The latch also releases on STOP, any disarm or auto-disarm, a
+  `control_mode` change, and after `latch_max_s` (default 3 s). Nothing
+  latches while disarmed, and re-arming never restores a latch. The keyboard
+  override beats the latch while held.
 
 ## Python interfaces
 
@@ -205,6 +230,10 @@ class EngineSettings:
     interval_s: float = 0.25         # decode period
     model_path: str | None = None    # optional ssvep_calibrate.py .npz
     mode: str = "trca_cca"           # scorer used with model_path
+    control_mode: str = "hold"       # Phase 6: "hold" | "latch"
+    clench_threshold: float = 8.0    # robust z of the EMG envelope
+    latch_max_s: float = 3.0
+    clench_channels: list[str] = ["Fp1", "Fp2", "P7", "P8"]
 ```
 
 ### `hub.bci.engine.BciEngine` (owner: Phase 1B, consumer: Phase 1A)

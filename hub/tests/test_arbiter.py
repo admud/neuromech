@@ -116,3 +116,120 @@ def test_bad_direction_rejected():
         a.on_decode("forward")
     with pytest.raises(ValueError):
         a.set_override("spin", T)
+
+
+# ---- Phase 6: latch mode -------------------------------------------------
+
+def latch_arbiter(**kw):
+    a = Arbiter(dwell=2, speed=0.3, mode="latch", **kw)
+    return a
+
+
+def dwell_on(a, d, t0, n=3, step=0.25):
+    """n decodes of `d`, 0.25 s apart, ending at t0 + (n-1)*step. Returns that time."""
+    for k in range(n):
+        a.on_decode(d, t0 + k * step)
+    return t0 + (n - 1) * step
+
+
+def test_hold_mode_ignores_clench():
+    a = Arbiter(dwell=1)
+    a.on_decode("up", T)
+    assert a.clench(T + 0.1, T + 0.15) == ("hold_mode", None)
+    assert a.latched is None
+
+
+def test_latch_mode_gaze_only_previews():
+    a = latch_arbiter()
+    t = dwell_on(a, "up", T)
+    assert a.active == "up"
+    assert armed_cmd(a, t)["direction"] is None           # preview: no motion
+    assert a.dwell_status()["direction"] == "up"
+
+
+def test_clench_latches_last_dwelled_winner_and_gaze_is_free():
+    a = latch_arbiter()
+    t = dwell_on(a, "left", T)
+    assert a.clench(onset=t + 0.1, now=t + 0.2) == ("latched", "left")
+    c = armed_cmd(a, t + 0.3)
+    assert (c["direction"], c["vy"], c["source"]) == ("left", 0.3, "bci")
+    for k, w in enumerate(["up", None, "right", "right", "right"]):   # gaze wanders
+        a.on_decode(w, t + 0.5 + 0.25 * k)
+    assert armed_cmd(a, t + 2.0)["direction"] == "left"
+
+
+def test_clench_ignores_decodes_after_its_onset():
+    # The only dwelled decode is after the onset (EMG in its window): no target.
+    a = latch_arbiter()
+    a.on_decode("up", T)
+    a.on_decode("up", T + 0.3)                              # dwelled at T+0.3
+    assert a.clench(onset=T + 0.2, now=T + 0.35) == ("no_target", None)
+
+
+def test_clench_looks_back_only_half_a_second():
+    a = latch_arbiter()
+    t = dwell_on(a, "up", T)
+    a.on_decode(None, t + 0.25)
+    a.on_decode(None, t + 0.5)
+    assert a.clench(onset=t + 0.6, now=t + 0.7) == ("no_target", None)   # last active 0.6 s ago
+    a2 = latch_arbiter()
+    t = dwell_on(a2, "up", T)
+    a2.on_decode(None, t + 0.25)
+    assert a2.clench(onset=t + 0.4, now=t + 0.5) == ("latched", "up")    # 0.4 s ago: ok
+
+
+def test_clench_with_no_winner_is_ignored():
+    a = latch_arbiter()
+    a.on_decode("up", T)                                     # never dwelled
+    assert a.clench(T + 0.1, T + 0.2) == ("no_target", None)
+    assert armed_cmd(a, T + 0.3)["direction"] is None
+
+
+def test_second_clench_always_stops_even_looking_elsewhere():
+    a = latch_arbiter()
+    t = dwell_on(a, "up", T)
+    a.clench(t + 0.1, t + 0.2)
+    t2 = dwell_on(a, "down", t + 0.5)                        # now dwelling on another target
+    assert a.clench(t2 + 0.1, t2 + 0.2) == ("unlatched", "up")
+    assert armed_cmd(a, t2 + 0.3)["direction"] is None
+
+
+def test_latch_expires_after_latch_max():
+    a = latch_arbiter(latch_max_s=3.0)
+    t = dwell_on(a, "right", T)
+    a.clench(t + 0.1, t + 0.2)
+    assert a.latch_status(t + 1.2) == {"elapsed_s": 1.0, "max_s": 3.0, "left_s": 2.0}
+    assert armed_cmd(a, t + 3.1)["direction"] == "right"
+    assert armed_cmd(a, t + 3.25)["direction"] is None      # 3.05 s after latching
+    assert a.latched is None and a.latch_status(t + 3.3) is None
+
+
+def test_expire_reports_once():
+    a = latch_arbiter(latch_max_s=1.0)
+    t = dwell_on(a, "up", T)
+    a.clench(t, t)
+    assert a.expire(t + 0.5) is False
+    assert a.expire(t + 1.0) is True
+    assert a.expire(t + 1.5) is False
+
+
+def test_override_beats_latch_then_latch_resumes():
+    a = latch_arbiter(latch_max_s=5.0)
+    t = dwell_on(a, "up", T)
+    a.clench(t, t)
+    a.set_override("left", t + 0.5)
+    assert armed_cmd(a, t + 0.6)["source"] == "override"
+    assert armed_cmd(a, t + 1.2)["direction"] == "up"
+
+
+def test_latched_but_disarmed_or_eeg_bad_is_zero():
+    a = latch_arbiter()
+    t = dwell_on(a, "up", T)
+    a.clench(t, t)
+    assert a.command(armed=False, eeg_ok=True, now=t + 0.1)["direction"] is None
+    assert armed_cmd(a, t + 0.1, eeg_ok=False)["direction"] is None
+
+
+def test_unknown_mode_rejected():
+    with pytest.raises(ValueError):
+        Arbiter(mode="toggle")
