@@ -21,15 +21,21 @@ about 20 ms apart. STOP then repeats about once a second. Link loss,
 replacement, Ctrl+C, and other exits also send a final three STOPs. Motion
 commands are never queued in the bridge.
 
+After a command timeout, the bridge closes its robot socket and reconnects.
+Buffered movement commands from the old socket are ignored. On the new
+socket, motion remains locked until the hub sends a zero command; a stray
+moving command cannot restart the rover after watchdog STOP. Closing the
+old socket also gives the hub a robot-loss signal so it can disarm.
+
 The copied `robot/ugv_controller.py` matches the user's Downloads file
 byte for byte (SHA-256 `7774707709cc0dc1619e97c0782d9cb3bf53b00fd60f4b870eec50eb5c57b85b`).
 
 Verification: `control/.venv/Scripts/python.exe -m pytest
-hub/tests/test_ugv_bridge.py -q` passes 6 tests against localhost fake UDP
+hub/tests/test_ugv_bridge.py -q` passes 7 tests against localhost fake UDP
 and WebSocket servers. A live `hub --device sim` session on port 55547 sent
 `FWD` after simulated up gaze and `STOP` on disarm into a localhost UDP
 recorder. No packet was sent to the real rover.
-The other 71 hub tests also passed during this handoff.
+The other 71 hub tests also passed during the initial handoff.
 
 Physical behavior remains to be checked by the user: if the Pi queues each
 one-second motion command rather than restarting its timer, repeated commands

@@ -37,11 +37,14 @@ async def setup_bridge(repeat=0.5, video="none"):
                                                         local_addr=("127.0.0.1", 0))
     udp_port = transport.get_extra_info("sockname")[1]
     connected = loop.create_future()
+    connections = []
     incoming = []
 
     async def handler(ws):
         hello = json.loads(await ws.recv())
-        connected.set_result((ws, hello))
+        connections.append(ws)
+        if not connected.done():
+            connected.set_result((ws, hello))
         async for raw in ws:
             incoming.append(raw if isinstance(raw, bytes) else json.loads(raw))
 
@@ -49,8 +52,10 @@ async def setup_bridge(repeat=0.5, video="none"):
     ws_port = server.sockets[0].getsockname()[1]
     bridge = UgvBridge(hub=f"ws://127.0.0.1:{ws_port}", host="127.0.0.1",
                        port=udp_port, repeat=repeat, video=video)
+    bridge.test_connections = connections
     runner = asyncio.create_task(bridge.run())
     ws, hello = await asyncio.wait_for(connected, 2)
+    await asyncio.sleep(0.06)  # drain startup STOP datagrams before test recording
     return bridge, runner, server, transport, recorder, ws, hello, incoming
 
 
@@ -160,9 +165,8 @@ async def _exercise_repeat_watchdog():
         await eventually(lambda: recorder.words().count("STOP") > count, timeout=1.2)
         assert recorder.words()[-1] == "STOP"
     finally:
-        before = len(recorder.events)
         await teardown_bridge(runner, server, transport)
-        assert [word for _, word in recorder.events[before:]][-3:] == ["STOP"] * 3
+        assert recorder.words()[-3:] == ["STOP"] * 3
 
 
 def test_replacement_exits_with_stop():
@@ -205,5 +209,35 @@ async def _exercise_exception_stop():
             assert str(exc) == "camera failed"
         await eventually(lambda: recorder.words().count("STOP") >= 3)
         assert recorder.words()[-3:] == ["STOP"] * 3
+    finally:
+        await teardown_bridge(runner, server, transport)
+
+
+def test_watchdog_rejects_late_motion_until_new_session_sees_zero():
+    asyncio.run(_exercise_watchdog_recovery())
+
+
+async def _exercise_watchdog_recovery():
+    bridge, runner, server, transport, recorder, ws, hello, incoming = await setup_bridge(video="none")
+    try:
+        recorder.events.clear()
+        await ws.send(json.dumps({"type": "cmd", "vx": 0.3, "vy": 0, "ttl_ms": 500}))
+        await eventually(lambda: "FWD" in recorder.words())
+        await eventually(lambda: bridge.watchdog_fired.is_set(), timeout=0.8)
+        await eventually(lambda: recorder.words().count("STOP") >= 3)
+        forward_count = recorder.words().count("FWD")
+        # A stale packet from the timed-out stream cannot restart movement.
+        bridge.on_command({"type": "cmd", "vx": 0.3, "vy": 0, "ttl_ms": 500})
+        assert recorder.words().count("FWD") == forward_count
+        await eventually(lambda: len(bridge.test_connections) >= 2, timeout=2)
+        fresh_ws = bridge.test_connections[-1]
+        await fresh_ws.send(json.dumps({"type": "cmd", "vx": 0.3, "vy": 0, "ttl_ms": 500}))
+        await asyncio.sleep(0.1)
+        assert recorder.words().count("FWD") == forward_count
+        assert bridge.recovery_requires_zero
+        await fresh_ws.send(json.dumps({"type": "cmd", "vx": 0, "vy": 0, "ttl_ms": 500}))
+        await eventually(lambda: not bridge.recovery_requires_zero)
+        await fresh_ws.send(json.dumps({"type": "cmd", "vx": 0.3, "vy": 0, "ttl_ms": 500}))
+        await eventually(lambda: recorder.words().count("FWD") > forward_count)
     finally:
         await teardown_bridge(runner, server, transport)
