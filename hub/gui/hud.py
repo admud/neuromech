@@ -75,8 +75,8 @@ class Hud:
                            color=[0.6, 0.6, 0.6])
         self.help = Text(KEYS_HELP, pos=(w / 2 - pad, -h / 2 + pad), anchor_x="right", anchor_y="bottom",
                          height=20 * u, color=[0.2, 0.2, 0.2])
-        # Left column under the arm state, clear of the top circle.
-        self.timing = Text("", pos=(-w / 2 + pad, h / 2 - pad - 110 * u), anchor_y="top", height=22 * u,
+        # Left column under the arm state, clear of the top circle (and below the latch status).
+        self.timing = Text("", pos=(-w / 2 + pad, h / 2 - pad - 250 * u), anchor_y="top", height=22 * u,
                            color=[1, 1, 0.2], multiline=True, width=int(w / 2 - layout.radius * 1.3 - pad))
         self.banner = Text("DISCONNECTED from hub - reconnecting", pos=(0, h * 0.12), anchor_x="center",
                            anchor_y="center", height=44 * u, bold=True, color=[1, -0.6, -0.6])
@@ -102,28 +102,29 @@ class Hud:
         self.armbar_w = w * 0.3
 
         # ---- Phase 6: latch mode
-        # One prebuilt label per direction: changing a label's text at the
-        # moment of latching cost a late frame.
-        self.latch_texts = {t: Text("LATCHED " + GLYPH[t], pos=(0, h * 0.20), anchor_x="center",
-                                    anchor_y="center", height=96 * u, bold=True, color=GREEN)
+        # Kept off the video: a small status column in the top-left margin,
+        # under ARMED/DISARMED. The latched circle's green ring already shows
+        # the direction. One prebuilt label per direction: changing a label's
+        # text at the moment of latching cost a late frame.
+        x0, y0 = -w / 2 + pad, h / 2 - pad
+        self.latch_texts = {t: Text("LATCHED " + GLYPH[t], pos=(x0, y0 - 110 * u), anchor_y="top",
+                                    height=40 * u, bold=True, color=GREEN)
                             for t in TARGETS}
-        self.latch_bg = visual.Rect(win, width=w * 0.34, height=130 * u, pos=(0, h * 0.20),
-                                    fillColor=[-1, -1, -1], lineColor=GREEN, lineWidth=4 * u, opacity=0.8)
-        self.latchbar_w = w * 0.3
-        self.latchbar_bg = visual.Rect(win, width=self.latchbar_w, height=18 * u, pos=(0, h * 0.20 - 85 * u),
-                                       fillColor=[-0.6, -0.6, -0.6], lineColor=None)
-        self.latchbar = visual.Rect(win, width=1, height=18 * u, pos=(-self.latchbar_w / 2, h * 0.20 - 85 * u),
+        self.latchbar_w = 240 * u
+        bar_y = y0 - 170 * u
+        self.latchbar_bg = visual.Rect(win, width=self.latchbar_w, height=8 * u, pos=(x0, bar_y),
+                                       fillColor=[-0.6, -0.6, -0.6], lineColor=None, anchor="left")
+        self.latchbar = visual.Rect(win, width=1, height=8 * u, pos=(x0, bar_y),
                                     fillColor=GREEN, lineColor=None, anchor="left")
-        self.preview_text = Text("PREVIEW - clench to go", pos=(0, h * 0.20), anchor_x="center",
-                                 anchor_y="center", height=40 * u, bold=True, color=AMBER)
-        self.clench_text = Text("CLENCH", pos=(0, -h * 0.20), anchor_x="center", anchor_y="center",
-                                height=64 * u, bold=True, color=[1, 1, 0.4])
-        self.notarget_text = Text("no target - look at a circle, then clench", pos=(0, -h * 0.20),
-                                  anchor_x="center", anchor_y="center", height=40 * u, bold=True,
-                                  color=[1, 0.2, -0.4])
-        self.notarmed_text = Text("clench ignored - not armed", pos=(0, -h * 0.20),
-                                  anchor_x="center", anchor_y="center", height=40 * u, bold=True,
-                                  color=[1, 0.2, -0.4])
+        self.preview_text = Text("PREVIEW", pos=(x0, y0 - 110 * u), anchor_y="top",
+                                 height=26 * u, bold=True, color=AMBER)
+        note_y = y0 - 190 * u
+        self.clench_text = Text("CLENCH", pos=(x0, note_y), anchor_y="top", height=26 * u, bold=True,
+                                color=[1, 1, 0.4])
+        self.notarget_text = Text("NO TARGET", pos=(x0, note_y), anchor_y="top", height=26 * u,
+                                  bold=True, color=[1, 0.2, -0.4])
+        self.notarmed_text = Text("NOT ARMED", pos=(x0, note_y), anchor_y="top", height=26 * u,
+                                  bold=True, color=[1, 0.2, -0.4])
         self.latch = {"mode": "hold", "latched": None, "preview": False, "flash": False,
                       "notice": None, "no_target": False, "frac": None}
         # Rasterise every glyph we'll ever show now, not mid-run: a new glyph
@@ -139,7 +140,7 @@ class Hud:
             t.draw()
         # First draws of psychopy shapes also cost (buffers, shader setup): do them now.
         for stim in [*self.rings_drive.values(), *self.rings_preview.values(), self.arrow,
-                     self.armbar_bg, self.armbar, self.banner_bg, self.latch_bg,
+                     self.armbar_bg, self.armbar, self.banner_bg,
                      self.latchbar_bg, self.latchbar]:
             stim.draw()
         win.clearBuffer()
@@ -195,7 +196,6 @@ class Hud:
             self.armbar.pos = (-self.armbar_w / 2, self.armbar.pos[1])
             self.armbar.draw()
         if lt["latched"]:
-            self.latch_bg.draw()
             if lt["frac"] is not None:
                 self.latchbar_bg.draw()
                 self.latchbar.width = max(1.0, self.latchbar_w * lt["frac"])

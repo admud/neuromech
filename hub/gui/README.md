@@ -131,14 +131,16 @@ What the display shows, from the engine's optional state fields
 also accepts the first proposal's `latched_at` / `clench.ignored_at`.
 
 **GUI (`hub.gui`)**
+- All latch and clench text sits in the **top-left margin** under
+  ARMED/DISARMED, off the video (the user asked for it not to cover the feed).
 - In latch mode with nothing latched, the gaze winner gets an **amber** ring
-  and "PREVIEW - clench to go": selected, but not moving. In hold mode the
-  ring stays green, as before.
-- Latched: a big **"LATCHED ▲/▼/◄/►"** box and a timer bar that drains over
+  and a small "PREVIEW": selected, but not moving. In hold mode the ring
+  stays green, as before.
+- Latched: a small **"LATCHED ▲/▼/◄/►"** and a thin timer bar under it that drains over
   `latch.max_s`. The bar is interpolated between the 10 Hz states from
   `left_s` and state age. The ring moves to the latched target, and the
   command arrow shows the direction being driven.
-- Any clench flashes **CLENCH** for 0.4 s.
+- Any clench flashes a small **CLENCH** (or **NO TARGET** / **NOT ARMED**) in the same margin for 0.4 s.
 - `result == "no_target"` shows "no target - look at a circle, then clench"
   for 1.5 s, and `not_armed` shows "clench ignored - not armed". Events
   are detected by a change of `clench.last.t`, so an old event seen on
