@@ -60,6 +60,7 @@ hub/                    PC hub, Python package, run as `python -m hub`
   video.py              newest-frame JPEG relay
   stub_engine.py        fake BciEngine for UI work (`--stub`)
   gui/                  desktop operator display (psychopy): full-screen video + 4 flicker circles; `python -m hub.gui`
+  ugv/                  UGV bridge: hub `cmd` -> the Pi's UDP FWD/BACK/LEFT/RIGHT/STOP (port 5005); `python -m hub.ugv`
   bci/                  board open + dongle auto-detect, decoder wiring, arbiter (safety)
   sim/                  sim_board.py (fake EEG with SSVEP), robot_sim.py (headless robot, RPi template)
   tests/                pytest
@@ -72,7 +73,7 @@ web/                    static pages served by the hub, no build step
     worlds/default.json the virtual arena (walls, spawn, robot camera)
     vendor/three/       vendored three.js (no CDN)
 e2e/                    browser/sim end-to-end scenario scripts (node + headless Chrome over CDP); see e2e/README.md
-robot/                  [Phase 3] Raspberry Pi robot agent
+robot/                  rover side. ugv_controller.py = the team's manual UDP keyboard tool (test file; the Pi code lands later)
 ```
 
 ## Environment
@@ -103,6 +104,7 @@ control\.venv\Scripts\python -m hub                    # real headset, dongle au
 control\.venv\Scripts\python -m hub --device sim       # fake EEG; drive via dashboard "sim gaze"
 control\.venv\Scripts\python -m hub --stub             # fake engine, for UI work
 control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
+control\.venv\Scripts\python -m hub.ugv --host NeuroMech.local   # drive the real rover (use the Pi's IP if .local fails); replaces robot_sim
 control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check
 control\.venv\Scripts\python -m hub.gui.analyze f.csv   # fps, late frames, measured flicker frequencies
 control\.venv\Scripts\python -m hub.sim.robot_sim --video test   # headless fake robot

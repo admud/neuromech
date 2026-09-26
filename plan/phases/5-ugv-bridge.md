@@ -1,6 +1,6 @@
 # Phase 5: drive the real UGV from the hub
 
-**Agent:** sol · **Tests:** @main · **Status:** approved 2026-09-26, in progress
+**Agent:** sol · **Tests:** @main · **Status:** done 2026-09-26 (`97c648b`), accepted by @main against a fake Pi; real rover pending
 
 **User answers (2026-09-26):**
 1. Each command moves the rover for **1 second**, then it stops. So the Pi has
