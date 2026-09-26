@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuroMech sim</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">
+{"imports": {"three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/"}}
+</script>
+</head>
+<body>
+<canvas id="view" tabindex="0"></canvas>
+
+<div id="hud">
+  <div class="row"><span data-k="armed" class="badge stale">HUB ?</span> <span data-k="reason" class="dim"></span></div>
+  <div class="row"><span class="k">cmd</span> <span data-k="cmd">stop</span> <span class="k">dwell</span> <span data-k="dwell">–</span></div>
+  <div data-k="bars" class="bars"></div>
+  <div class="row links">
+    <span class="k">hub</span> <span data-k="hub">off</span>
+    <span class="k">robot</span> <span data-k="robot">off</span>
+    <span class="k">phone</span> <span data-k="phone">–</span>
+    <span class="k">eeg</span> <span data-k="eeg">–</span>
+  </div>
+  <div class="row"><span data-k="motion">v 0.00, 0.00</span></div>
+  <div class="row small dim"><span class="k">cam</span> <span data-k="cam">chase</span> (C) · <span class="k">view</span> <span id="mainfps">–</span> · <span id="pose"></span></div>
+</div>
+
+<div id="pip">
+  <div class="pip-title">robot camera · <span data-k="fpv" id="fpvstat">–</span></div>
+</div>
+
+<div id="bannerbox">
+  <div id="banner" class="banner"></div>
+  <button id="takeover" hidden>Take over as robot</button>
+</div>
+
+<script type="module" src="./twin.js"></script>
+</body>
+</html>

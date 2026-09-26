@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NeuroMech · Robot model</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; color: #e9edf1; background: #111820; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { height: 100dvh; display: grid; grid-template-columns: 310px 1fr; }
+    aside { padding: 27px 23px; background: #171f29; overflow: auto; border-right: 1px solid #34404c; z-index: 1; }
+    .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #edc859; }
+    h1 { font-size: 27px; font-weight: 550; letter-spacing: -1px; margin: 9px 0 8px; }
+    p { font-size: 12px; line-height: 1.6; color: #a8b5c3; }
+    .rule { border-top: 1px solid #34404c; margin: 23px 0; }
+    label { display: block; font-size: 12px; margin: 17px 0 7px; color: #c7d2de; }
+    label output { float: right; color: #edc859; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; accent-color: #edc859; }
+    .presets { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; margin-top: 18px; }
+    button, select { font: inherit; font-size: 12px; border: 1px solid #485567; color: #e9edf1; background: #26313e; border-radius: 6px; padding: 10px 8px; cursor: pointer; }
+    button:hover { border-color: #edc859; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #edc859; outline-offset: 3px; }
+    button.stop { grid-column: 1 / -1; color: #ffe8a6; background: #403a26; border-color: #766239; }
+    .row { display: flex; gap: 9px; align-items: center; justify-content: space-between; }
+    .row label { margin: 0; }
+    .row + .row { margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+    th, td { padding: 7px 0; text-align: left; border-bottom: 1px solid #2c3845; }
+    th { color: #9babbc; font-size: 10px; font-weight: 500; }
+    td:last-child, th:last-child { text-align: right; }
+    .note { font-size: 11px; margin-bottom: 0; }
+    #viewport { position: relative; min-width: 0; min-height: 0; }
+    canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    .badge { position: absolute; left: 24px; top: 24px; font-size: 10px; letter-spacing: 1.5px; color: #a8b5c3; pointer-events: none; }
+    #caption { position: absolute; left: 24px; right: 24px; bottom: 23px; color: #a8b5c3; font-size: 11px; display: flex; flex-wrap: wrap; gap: 6px 20px; pointer-events: none; }
+    #error { position: absolute; inset: 30%; color: #ffd6b8; background: #171f29; padding: 20px; height: fit-content; }
+    [hidden] { display: none !important; }
+    @media (max-width: 720px) { main { height: auto; grid-template-columns: 1fr; } #viewport { grid-row: 1; height: 55dvh; } aside { padding: 20px; } .rule { margin: 16px 0; } }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <main>
+    <aside>
+      <div class="eyebrow">NEUROMECH / HARDWARE TWIN</div>
+      <h1>Mecanum rover</h1>
+      <p>Photo-based geometry, in metres.<br>Two aluminium decks. Four independent wheels.</p>
+      <div class="rule"></div>
+      <label for="vx">Forward velocity <output id="vx-value">0.00 m/s</output></label>
+      <input id="vx" type="range" min="-0.5" max="0.5" step="0.01" value="0">
+      <label for="vy">Left velocity <output id="vy-value">0.00 m/s</output></label>
+      <input id="vy" type="range" min="-0.5" max="0.5" step="0.01" value="0">
+      <label for="wz">Counter-clockwise yaw <output id="wz-value">0.00 rad/s</output></label>
+      <input id="wz" type="range" min="-1.5" max="1.5" step="0.05" value="0">
+      <div class="presets">
+        <button data-vx="0.2" data-vy="0">Forward ↑</button>
+        <button data-vx="-0.2" data-vy="0">Back ↓</button>
+        <button data-vx="0" data-vy="0.2">Strafe left ←</button>
+        <button data-vx="0" data-vy="-0.2">Strafe right →</button>
+        <button class="stop" id="stop">Stop wheels · Space</button>
+      </div>
+      <table aria-label="Wheel angular velocities">
+        <thead><tr><th>WHEEL</th><th>RAD / S</th></tr></thead>
+        <tbody>
+          <tr><td>Front left</td><td id="fl">0.00</td></tr>
+          <tr><td>Front right</td><td id="fr">0.00</td></tr>
+          <tr><td>Rear left</td><td id="rl">0.00</td></tr>
+          <tr><td>Rear right</td><td id="rr">0.00</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Positive = forward wheel rotation. For left strafe, FL/RR reverse and FR/RL advance. The chassis stays on the turntable.</p>
+      <div class="rule"></div>
+      <div class="row"><label for="turntable">Turntable</label><input id="turntable" type="checkbox" checked></div>
+      <div class="row"><label for="highlight">Highlight</label><select id="highlight"><option value="">Off</option><option value="#42cf99">Armed</option><option value="#f06b4f">Collision</option></select></div>
+      <div class="row"><button id="reset">Reset view</button><button id="top">Top view</button></div>
+      <p class="note" id="dimensions">Loading model…</p>
+      <p class="note">Scale estimated from the photo. Pi Zero: 65 × 30 mm; AA cells: 50 × 14 mm. Camera is a proposed mount.</p>
+    </aside>
+    <section id="viewport" aria-label="Interactive 3D robot preview">
+      <div class="badge">ROBOT FRAME / Z UP</div>
+      <div id="caption"><span>Drag to orbit · Scroll to zoom</span><span>X forward · Y left · Z up</span><span id="budget"></span></div>
+      <div id="error" role="alert" hidden></div>
+    </section>
+  </main>
+  <script type="module">
+    const error = document.querySelector('#error');
+    try {
+      const THREE = await import('three');
+      const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+      const { createRobotModel, mecanumWheelSpeeds } = await import('./robot_model.js');
+      const viewport = document.querySelector('#viewport');
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.35;
+      viewport.prepend(renderer.domElement);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111820);
+      const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 20);
+      camera.up.set(0, 0, 1);
+      camera.position.set(0.43, 0.49, 0.38);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 0, 0.095);
+      controls.enableDamping = true;
+      controls.minDistance = 0.20;
+      controls.maxDistance = 1.8;
+      controls.maxPolarAngle = Math.PI / 2 - 0.02;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.65;
+      controls.update();
+      controls.saveState();
+
+      const sky = new THREE.HemisphereLight(0xe4efff, 0x596779, 2.4);
+      sky.position.set(0, 0, 1);
+      scene.add(sky);
+      const key = new THREE.DirectionalLight(0xffefd6, 4.0);
+      key.position.set(0.30, 0.25, 0.65);
+      key.castShadow = true;
+      key.shadow.mapSize.set(1024, 1024);
+      Object.assign(key.shadow.camera, { left: -0.3, right: 0.3, top: 0.3, bottom: -0.3, near: 0.05, far: 2 });
+      key.shadow.normalBias = 0.0005;
+      key.shadow.bias = -0.0001;
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(0xa6caff, 2.5);
+      rim.position.set(-0.4, -0.3, 0.25);
+      scene.add(rim);
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(3, 3),
+        new THREE.MeshStandardMaterial({ color: 0x19232f, roughness: 0.92 }));
+      ground.position.z = -0.001;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const grid = new THREE.GridHelper(1.2, 24, 0x4b5b6e, 0x2e3b4b);
+      grid.rotation.x = Math.PI / 2;
+      grid.position.z = -0.0005;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.6;
+      scene.add(grid);
+      const axes = new THREE.AxesHelper(0.08);
+      axes.position.set(0.21, -0.16, 0.001);
+      scene.add(axes);
+      const robot = createRobotModel();
+      scene.add(robot.object);
+      let calls = 0, triangles = 0;
+      robot.object.traverse(mesh => {
+        if (!mesh.isMesh) return;
+        calls++;
+        triangles += (mesh.geometry.index?.count ?? mesh.geometry.attributes.position.count) / 3 * (mesh.count ?? 1);
+      });
+      document.querySelector('#budget').textContent = `${calls} model draws · ${Math.round(triangles).toLocaleString()} triangles`;
+      const dims = robot.dims;
+      document.querySelector('#dimensions').textContent =
+        `${Math.round(dims.length * 1000)} × ${Math.round(dims.width * 1000)} × ${Math.round(dims.height * 1000)} mm · ` +
+        `Camera ${Math.round(robot.cameraMount.position[2] * 1000)} mm / ${robot.cameraMount.pitchDeg}°`;
+      const inputs = Object.fromEntries(['vx', 'vy', 'wz'].map(id => [id, document.getElementById(id)]));
+      let speeds;
+      function refresh() {
+        const values = Object.fromEntries(Object.entries(inputs).map(([id, input]) => [id, Number(input.value)]));
+        for (const id of Object.keys(inputs)) {
+          document.getElementById(`${id}-value`).value = `${values[id].toFixed(2)} ${id === 'wz' ? 'rad/s' : 'm/s'}`;
+        }
+        speeds = mecanumWheelSpeeds(values.vx, values.vy, values.wz, dims);
+        for (const id of ['fl', 'fr', 'rl', 'rr']) document.getElementById(id).textContent = speeds[id].toFixed(2);
+      }
+      function drive(vx, vy, wz = 0) {
+        inputs.vx.value = vx; inputs.vy.value = vy; inputs.wz.value = wz;
+        refresh();
+      }
+      for (const input of Object.values(inputs)) input.addEventListener('input', refresh);
+      for (const button of document.querySelectorAll('[data-vx]')) {
+        button.addEventListener('click', () => drive(button.dataset.vx, button.dataset.vy));
+      }
+      document.querySelector('#stop').addEventListener('click', () => drive(0, 0));
+      document.addEventListener('keydown', event => {
+        if (event.code === 'Space' || event.code === 'Escape') { event.preventDefault(); drive(0, 0); }
+      });
+      document.querySelector('#turntable').addEventListener('change', event => controls.autoRotate = event.target.checked);
+      document.querySelector('#highlight').addEventListener('change', event => robot.setHighlight(event.target.value || null));
+      document.querySelector('#reset').addEventListener('click', () => controls.reset());
+      document.querySelector('#top').addEventListener('click', () => {
+        controls.autoRotate = false;
+        document.querySelector('#turntable').checked = false;
+        camera.position.set(0.0001, 0, 0.7);
+        controls.target.set(0, 0, 0.07);
+        controls.update();
+      });
+      const resize = new ResizeObserver(() => {
+        const { width, height } = viewport.getBoundingClientRect();
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      });
+      resize.observe(viewport);
+      refresh();
+      let previous;
+      renderer.setAnimationLoop(now => {
+        const dt = previous === undefined ? 0 : Math.min((now - previous) / 1000, 0.05);
+        previous = now;
+        robot.update(dt, speeds);
+        controls.update(dt);
+        renderer.render(scene, camera);
+      });
+      window.addEventListener('pagehide', event => {
+        if (event.persisted) return;
+        renderer.setAnimationLoop(null);
+        resize.disconnect();
+        controls.dispose();
+        robot.dispose();
+        ground.geometry.dispose(); ground.material.dispose();
+        grid.geometry.dispose(); grid.material.dispose();
+        axes.geometry.dispose(); axes.material.dispose();
+        key.shadow.dispose(); renderer.dispose();
+      });
+    } catch (cause) {
+      error.hidden = false;
+      error.textContent = `Preview could not start: ${cause.message}. Serve web/ over HTTP and check the local three.js files.`;
+      console.error(cause);
+    }
+  </script>
+</body>
+</html>
