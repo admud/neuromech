@@ -97,10 +97,12 @@ Jaw-clench latch. Clients that don't know them ignore them.
 ```json
 {"control_mode": "latch",                 // "hold" (gaze drives) | "latch" (gaze selects, clench toggles)
  "latched": "up",                         // latched direction, or null
+ "latched_at": 1233.9,                    // hub monotonic time the latch started, or null
  "latch": {"elapsed_s": 1.2, "max_s": 3.0, "left_s": 1.8},   // null unless latched
  "clench": {"z": 2.1,                     // peak combined EMG z over the last 0.2 s
             "threshold": 8.0, "count": 4,
             "fired_at": 1234.1,           // hub monotonic time of the last clench, or null
+            "ignored_at": 1230.2,         // last clench with no target to latch, or null
             "last": {"t": 1234.1, "result": "latched", "direction": "up"},
             "channels": ["Fp1", "Fp2", "P7", "P8"]},
  "params": {"control_mode": "latch", "clench_threshold": 8.0, "latch_max_s": 3.0, "...": "..."}}

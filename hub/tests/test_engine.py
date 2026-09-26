@@ -13,7 +13,7 @@ from hub.bci.engine import BciEngine, SeqDecoder
 
 ENGINE_KEYS = {"armed", "disarm_reason", "winner", "scores", "command", "dwell",
                "decode_ms", "params", "eeg", "sim", "warnings",
-               "control_mode", "latched", "latch", "clench"}  # Phase 6 (optional)
+               "control_mode", "latched", "latched_at", "latch", "clench"}  # Phase 6 (optional)
 
 
 def wait_for(pred, timeout, step=0.05):
@@ -444,7 +444,9 @@ def latch_on(e, target):
 def test_latch_status_shape(latch_engine):
     st = latch_engine.status()
     assert st["control_mode"] == "latch" and st["latched"] is None and st["latch"] is None
-    assert set(st["clench"]) == {"z", "threshold", "count", "fired_at", "last", "channels"}
+    assert set(st["clench"]) == {"z", "threshold", "count", "fired_at", "ignored_at", "last",
+                                 "channels"}
+    assert st["latched_at"] is None and st["clench"]["ignored_at"] is None
     assert st["clench"]["channels"] == ["Fp1", "Fp2", "P7", "P8"]
     assert st["params"]["control_mode"] == "latch"
     assert st["params"]["clench_threshold"] == 8.0 and st["params"]["latch_max_s"] == 3.0
@@ -465,6 +467,7 @@ def test_latch_end_to_end_gaze_free_then_clench_stops(latch_engine):
     assert (c["direction"], c["vx"], c["vy"]) == ("up", 0.3, 0.0)
     st = e.status()
     assert st["latched"] == "up" and 0 < st["latch"]["left_s"] <= 10.0
+    assert 0 <= time.monotonic() - st["latched_at"] < 1.0      # hub clock, like t_hub
     e.handle({"type": "sim_gaze", "target": "left"}, "dashboard")   # gaze wanders
     time.sleep(2.5)
     assert e.command()["direction"] == "up"
@@ -501,6 +504,8 @@ def test_clench_with_no_target(latch_engine):
     time.sleep(1.0)
     assert clench_and_wait(e)["result"] == "no_target"
     assert e.command()["direction"] is None
+    st = e.status()
+    assert st["clench"]["ignored_at"] == st["clench"]["fired_at"]
 
 
 def test_stop_releases_latch(latch_engine):

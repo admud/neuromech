@@ -95,6 +95,11 @@ class Arbiter:
     def latched(self):
         return self._latched
 
+    @property
+    def latched_at(self):
+        """When the current latch started (the caller's clock), or None."""
+        return self._latched_at if self._latched is not None else None
+
     def expire(self, now):
         """Drop a latch older than latch_max_s. Returns True if it just expired."""
         if self._latched is not None and now - self._latched_at >= self.latch_max_s:

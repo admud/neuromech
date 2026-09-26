@@ -102,6 +102,7 @@ class BciEngine:
         self._clench_z = []         # (t, peak z) of recent passes
         self._clench_count = 0
         self._clench_fired_at = None
+        self._clench_ignored_at = None   # last clench that found no target
         self._clench_event = None   # {"t", "result", "direction"}
 
         self._decoder = None
@@ -192,11 +193,13 @@ class BciEngine:
                 "warnings": self._warnings(),
                 "control_mode": s.control_mode,
                 "latched": self._arbiter.latched,
+                "latched_at": self._arbiter.latched_at,
                 "latch": self._arbiter.latch_status(now),
                 "clench": {"z": round(max([z for t, z in self._clench_z
                                             if now - t <= CLENCH_Z_SHOW_S] or [0.0]), 1),
                            "threshold": s.clench_threshold, "count": self._clench_count,
                            "fired_at": self._clench_fired_at,
+                           "ignored_at": self._clench_ignored_at,
                            "last": dict(self._clench_event) if self._clench_event else None,
                            "channels": list(self._clench_names)},
             }
@@ -506,6 +509,8 @@ class BciEngine:
         else:
             result, d = self._arbiter.clench(onset, now)
         self._clench_event = {"t": now, "result": result, "direction": d}
+        if result == "no_target":
+            self._clench_ignored_at = now
         _log("clench #%d: %s%s" % (self._clench_count, result, " " + d if d else ""))
 
     # ---- helpers (caller holds the lock) ---------------------------------
