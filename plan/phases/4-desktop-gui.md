@@ -1,6 +1,12 @@
 # Phase 4: desktop operator GUI (Python, no browser)
 
-**Agent:** opus · **Tests:** @main · **Status:** plan, waiting for the user's go
+**Agent:** opus · **Tests:** @main · **Status:** approved 2026-09-26, in progress
+
+**User decisions (2026-09-26):**
+- Display: the laptop's built-in **120 Hz** panel. The external monitor is 30 Hz and unusable for flicker.
+- Keep the **web dashboard** for tuning and status (without the 3D sim it's light).
+- Test video: `hub.sim.robot_sim --video test` until the rover exists.
+- Left/right stay **strafe**.
 **Why:** Chrome on this laptop shares the Intel GPU between the flicker and
 everything else and couldn't hold 120 fps (54–80 fps with late frames), and
 the demo won't use the phone. The operator display becomes a native Python
