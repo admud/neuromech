@@ -59,11 +59,12 @@ hub/                    PC hub, Python package, run as `python -m hub`
   server.py             FastAPI app: pages + /ws/phone /ws/dashboard /ws/video /ws/robot
   video.py              newest-frame JPEG relay
   stub_engine.py        fake BciEngine for UI work (`--stub`)
+  gui/                  desktop operator display (psychopy): full-screen video + 4 flicker circles; `python -m hub.gui`
   bci/                  board open + dongle auto-detect, decoder wiring, arbiter (safety)
   sim/                  sim_board.py (fake EEG with SSVEP), robot_sim.py (headless robot, RPi template)
   tests/                pytest
 web/                    static pages served by the hub, no build step
-  phone/                iPhone page: flicker targets + video + STOP/ARM
+  phone/                iPhone page: flicker targets + video + STOP/ARM (kept, not used for the demo)
   dashboard/            operator dashboard (embeds the twin in an iframe)
   twin/                 three.js 3D sim; the page IS the virtual robot on /ws/robot
     robot_model.js      our robot built from primitives + mecanumWheelSpeeds() (no modelling software)
@@ -101,6 +102,9 @@ robot/                  [Phase 3] Raspberry Pi robot agent
 control\.venv\Scripts\python -m hub                    # real headset, dongle auto-detected
 control\.venv\Scripts\python -m hub --device sim       # fake EEG; drive via dashboard "sim gaze"
 control\.venv\Scripts\python -m hub --stub             # fake engine, for UI work
+control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
+control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check
+control\.venv\Scripts\python -m hub.gui.analyze f.csv   # fps, late frames, measured flicker frequencies
 control\.venv\Scripts\python -m hub.sim.robot_sim --video test   # headless fake robot
 #   phone:     http://<laptop-lan-ip>:8765/phone/
 #   dashboard: http://localhost:8765/dashboard/   (its sim iframe is the virtual robot)

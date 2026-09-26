@@ -1,6 +1,6 @@
 # Phase 4: desktop operator GUI (Python, no browser)
 
-**Agent:** opus · **Tests:** @main · **Status:** approved 2026-09-26, in progress
+**Agent:** opus · **Tests:** @main · **Status:** done 2026-09-26 (`dd675cc`), accepted by @main
 
 **User decisions (2026-09-26):**
 - Display: the laptop's built-in **120 Hz** panel. The external monitor is 30 Hz and unusable for flicker.
