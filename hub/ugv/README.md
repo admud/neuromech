@@ -1,4 +1,23 @@
-# UGV bridge handoff
+# hub/ugv: rover bridge
+
+`python -m hub.ugv` connects to the hub as the robot and turns its commands
+into the rover's UDP words on port 5005:
+- forward → `FWD`, back → `BACK`, left → `LEFT`, right → `RIGHT`, zero → `STOP`;
+- **new direction:** sent at once, then repeated every 0.5 s while it's held;
+- **stopping:** `STOP` is sent three times.
+
+Drive the real rover (laptop and Pi on the same network):
+```
+control\.venv\Scripts\python -m hub --window 2
+control\.venv\Scripts\python -m hub.ugv --video none        # --host <Pi IP> if NeuroMech.local doesn't resolve
+control\.venv\Scripts\python -m hub.gui
+```
+First run: wheels off the ground, and drive with the arrow keys in the
+display. Then hold ↑ for 5 s, release, and time how long the wheels keep
+turning. About 0 s is right; more than 1 s means the Pi queues commands,
+so restart the bridge with `--repeat 1.0`.
+
+## Details (handoff notes)
 
 Run from the repository root with the Python 3.10 venv:
 

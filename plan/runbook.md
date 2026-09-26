@@ -1,5 +1,11 @@
 # Demo-day runbook: headset + iPhone test
 
+> **Update 2026-09-26:** the demo now uses the **desktop display** (`python -m hub.gui`)
+> instead of the iPhone, and drives the **real rover** through `python -m hub.ugv`
+> (or the Python virtual robot with `--virtual-robot`). The current commands are in
+> the [main README](../README.md#run). The headset checks, troubleshooting and
+> measurements below still apply. The phone steps describe the original setup.
+
 The robot is still **virtual**: the 3D sim embedded in the laptop dashboard is
 the robot, and its camera is the video on the phone. Everything runs from the
 repo root on the laptop, with the venv Python.
