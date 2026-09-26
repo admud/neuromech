@@ -194,3 +194,28 @@ def test_latch_view_no_target_and_stale_events_on_connect():
     # "no target" never shows while something is latched.
     s3 = _st(latched="left", latched_at=104.0, clench={"z": 1, "fired_at": 104.0, "count": 6, "ignored_at": 103.9})
     assert not v.update(s3, now=4.0, t_hub=104.0)["no_target"]
+
+
+def test_latch_view_engine_shape_latch_timer_and_results():
+    """The engine's actual fields: latch {left_s, max_s}, clench.last {t, result}."""
+    from hub.gui.logic import LatchView
+    v = LatchView(no_target_s=1.5)
+    v.update(_st(), now=0.0, t_hub=100.0)
+    s = _st(t_hub=100.5, latched="right", latch={"elapsed_s": 0.5, "max_s": 3.0, "left_s": 2.5},
+            clench={"z": 15, "fired_at": 100.0, "count": 1, "last": {"t": 100.0, "result": "latched",
+                                                                   "direction": "right"}})
+    out = v.update(s, now=0.55, t_hub=100.55)
+    assert out["latched"] == "right" and out["flash"] and out["notice"] is None
+    # Interpolated between states: 0.05 s after the state, 2.45 s left.
+    assert math.isclose(out["remaining_s"], 2.45) and math.isclose(out["frac"], 2.45 / 3.0)
+    for result in ("no_target", "not_armed"):
+        t = 102.0 if result == "no_target" else 104.0
+        s = _st(t_hub=t, clench={"z": 15, "fired_at": t, "count": 2,
+                                 "last": {"t": t, "result": result, "direction": None}})
+        out = v.update(s, now=t - 100, t_hub=t)
+        assert out["notice"] == result and out["flash"] and out["latched"] is None
+    # unlatched / hold_mode results flash but carry no notice
+    s = _st(t_hub=106.0, clench={"z": 15, "fired_at": 106.0, "count": 3,
+                                 "last": {"t": 106.0, "result": "unlatched", "direction": "up"}})
+    out = v.update(s, now=7.0, t_hub=106.0)       # the not_armed notice (from now=4) has expired
+    assert out["flash"] and out["notice"] is None

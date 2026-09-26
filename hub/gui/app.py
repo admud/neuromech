@@ -216,6 +216,7 @@ class App:
         t_start = time.monotonic()
         win_t0 = None
         self.t_prev = None
+        t_work0 = time.perf_counter()
         next_text = 0.0
         frame = 0
         print("  hub: ws://%s   keys: Space/Esc STOP, hold Enter ARM, arrows/WASD drive, F timing, Q quit"
@@ -279,12 +280,14 @@ class App:
                 hud.arm_progress = self.armhold.progress(now)
                 hud.draw()
 
+                work_ms = (time.perf_counter() - t_work0) * 1000.0
                 t_flip = win.flip()
+                t_work0 = time.perf_counter()
                 frame += 1
 
                 # ---- after the flip: bookkeeping for the next frame
                 if log is not None:
-                    log.add(frame, t_pred, t_flip, lv, freqs)
+                    log.add(frame, t_pred, t_flip, lv, freqs, work_ms)
                 if self.t_prev is not None and not self.hidden:
                     stats.add(t_flip - self.t_prev)
                 self.t_prev = t_flip

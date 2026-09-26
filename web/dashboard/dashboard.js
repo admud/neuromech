@@ -473,14 +473,18 @@ window.__dash = { get state() { return state; }, get config() { return config; }
 // ------------------------------------------------------------------ control: hold / latch, clench (Phase 6)
 //
 // State fields (optional; a hub without them hides this panel's controls):
-// control_mode, latched, latched_at, clench {z, threshold, fired_at, count,
-// ignored_at}, params.latch_max_s / clench_threshold. Times are t_hub.
+// control_mode, latched, latch {elapsed_s, max_s, left_s},
+// clench {z, threshold, fired_at, count, last {t, result, direction}},
+// params.latch_max_s / clench_threshold. Fallbacks: latched_at,
+// clench.ignored_at. Times are t_hub.
 
 const thr = $("thr");
 const latchMax = $("latchmax");
 let thrPending = null;      // value sent, until the hub echoes it
-let lastIgnored = null;
-let noTargetUntil = 0;
+let lastEvent;             // clench.last.t (or ignored_at) last seen; undefined = nothing yet
+let notice = "", noticeUntil = 0;
+const NOTICES = { no_target: "clench ignored: no target (look at a circle first)",
+                  not_armed: "clench ignored: not armed" };
 
 for (const b of document.querySelectorAll("[data-mode]")) {
   b.addEventListener("click", () => {
@@ -536,7 +540,11 @@ function renderControl(s) {
   el.textContent = latched ? `LATCHED ${ARROW[latched]} ${latched}` : (s.control_mode === "latch" ? "not latched" : "");
   el.classList.toggle("on", !!latched);
   $("latchbar").hidden = !latched;
-  if (latched && typeof s.latched_at === "number" && typeof s.t_hub === "number") {
+  const lt = s.latch;
+  if (latched && lt && typeof lt.left_s === "number" && lt.max_s > 0) {
+    $("latchfill").style.width = (100 * lt.left_s / lt.max_s) + "%";
+    el.textContent += ` · ${lt.left_s.toFixed(1)} s`;
+  } else if (latched && typeof s.latched_at === "number" && typeof s.t_hub === "number") {
     const left = Math.max(0, maxS - (s.t_hub - s.latched_at));
     $("latchfill").style.width = (100 * left / maxS) + "%";
   }
@@ -554,15 +562,18 @@ function renderControl(s) {
   const ago = typeof cl.fired_at === "number" && typeof s.t_hub === "number" ? s.t_hub - cl.fired_at : null;
   $("clench-info").textContent = `· count ${cl.count ?? 0}` + (ago != null ? ` · last ${ago.toFixed(1)} s ago` : "");
 
-  // "no target": a clench arrived with nothing dwelled to latch. Shown on a
-  // change of ignored_at (a stale one seen on connect only if it's recent).
-  if (typeof cl.ignored_at === "number" && cl.ignored_at !== lastIgnored) {
-    if (lastIgnored !== null || (typeof s.t_hub === "number" && s.t_hub - cl.ignored_at < 2)) {
-      noTargetUntil = performance.now() + 2500;
-    }
-    lastIgnored = cl.ignored_at;
+  // A clench that couldn't latch: "no target" / "not armed". Shown on a
+  // change of the event (a stale one seen on connect only if it's recent).
+  const last = cl.last && typeof cl.last.t === "number" ? cl.last : null;
+  const evT = last ? last.t : (typeof cl.ignored_at === "number" ? cl.ignored_at : null);
+  if (evT !== null && evT !== lastEvent) {
+    const result = last ? last.result : "no_target";
+    const fresh = lastEvent !== undefined || (typeof s.t_hub === "number" && s.t_hub - evT < 2);
+    if (fresh && NOTICES[result]) { notice = NOTICES[result]; noticeUntil = performance.now() + 2500; }
+    lastEvent = evT;
   }
-  $("notarget").textContent = !latched && performance.now() < noTargetUntil ? "clench ignored: no target (look at a circle first)" : "";
+  if (last && last.result) $("clench-info").textContent += ` · last: ${last.result.replace("_", " ")}`;
+  $("notarget").textContent = !latched && performance.now() < noticeUntil ? notice : "";
 
   // Controls follow the hub unless the operator is mid-edit.
   if (threshold != null) {

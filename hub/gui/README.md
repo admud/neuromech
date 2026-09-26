@@ -122,3 +122,70 @@ a dashboard observer sending `sim_gaze` and `set_config`):
 - In the sim, with gaze `none`, the engine sometimes still decodes a winner
   (I saw `left` briefly). That's the known creeping behaviour noted in
   CLAUDE.md, not the GUI.
+
+## Phase 6: latch mode (opus, 2026-09-26)
+
+What the display shows, from the engine's optional state fields
+`control_mode`, `latched`, `latch {elapsed_s, max_s, left_s}` and
+`clench {z, threshold, count, fired_at, last {t, result, direction}}`. It
+also accepts the first proposal's `latched_at` / `clench.ignored_at`.
+
+**GUI (`hub.gui`)**
+- In latch mode with nothing latched, the gaze winner gets an **amber** ring
+  and "PREVIEW - clench to go": selected, but not moving. In hold mode the
+  ring stays green, as before.
+- Latched: a big **"LATCHED ▲/▼/◄/►"** box and a timer bar that drains over
+  `latch.max_s`. The bar is interpolated between the 10 Hz states from
+  `left_s` and state age. The ring moves to the latched target, and the
+  command arrow shows the direction being driven.
+- Any clench flashes **CLENCH** for 0.4 s.
+- `result == "no_target"` shows "no target - look at a circle, then clench"
+  for 1.5 s, and `not_armed` shows "clench ignored - not armed". Events
+  are detected by a change of `clench.last.t`, so an old event seen on
+  connect never flashes.
+- The status line shows `mode hold|latch`.
+- Timing: every label, ring set (green and amber) and rect is created and
+  drawn once at startup. Swapping a label's text or recolouring a
+  psychopy ring mid-run cost late frames (up to 38 ms), so a state change
+  now costs nothing. The logic is `logic.LatchView`, which is unit-tested.
+- `--log-frames` has a new `work_ms` column: this thread's CPU time per
+  frame. `analyze` prints its p95 and max. With small `work_ms`, late frames
+  come from outside the GUI.
+
+**Dashboard (`web/dashboard/`)**, a new **Control** panel:
+- HOLD / LATCH toggle (`set_config control_mode`), the latched state, with
+  seconds left and a timer bar;
+- clench z meter, with the threshold marked, a count and the last result;
+- threshold slider (`set_config clench_threshold`, sent on release; shows
+  "applied" when the hub echoes it);
+- max latch (`set_config latch_max_s`);
+- "no target" / "not armed" notices;
+- a **sim clench** button and **K** key (sim only).
+
+The header's command box says LATCHED. A hub without these fields hides the
+panel's controls. `?demo=1` emulates latch mode in the engine's field shape.
+
+**Measured**
+- Against opus3's engine (`hub --device sim --control latch`, from the
+  working tree before it was committed) plus `robot_sim --fps 20`, with the
+  GUI windowed and a dashboard client scripting `sim_gaze` / `sim_clench`:
+  - clench with no gaze → `no_target`;
+  - gaze up, then clench → latched up (the robot drove +x while the gaze
+    wandered to left);
+  - clench → `unlatched`;
+  - re-latch → released by the timeout 2.97 s later;
+  - re-latch → Space → disarm `user`, latch released.
+- GUI timing through that whole 24 s sequence: **119.97 fps, 1 late frame
+  (0.03%)**, max 16.5 ms, our work per frame p95 1.35 ms. Frequencies
+  measured 11/14/17/20 Hz.
+- Earlier noisy runs (1–18% late for *both* the Phase 4 and Phase 6 code)
+  came from an orphaned headless Chrome of my own tests using 42% of the
+  GPU. It was killed, and the test helper now kills the whole process tree.
+- Dashboard (CDP, real engine): mode toggle, no-target notice, latch +
+  timer, threshold 10 and max latch 4 applied and echoed. In `?demo=1`:
+  every path, including timeout and STOP releasing the latch.
+
+**Note for the engine:** two `sim_clench`es less than ~0.9 s apart count as
+one (0.6 s burst + 0.4 s refractory: 0.5 and 0.7 s gaps gave 1 of 2; 0.9 s
+and more gave 2 of 2). So "clench to stop" right after latching needs a
+~1 s gap in sim. Real clenches may differ.

@@ -23,7 +23,7 @@ export class DemoDashLink {
     this.controlMode = "hold";
     this.latched = null;
     this.latchedAt = null;
-    this.clench = { z: 1, threshold: 8, fired_at: null, count: 0, ignored_at: null };
+    this.clench = { z: 1, threshold: 8, fired_at: null, count: 0, last: null };
     this.clenchUntil = 0;
     this.latchMax = 3.0;
     this.log = [];   // messages received, for tests
@@ -68,12 +68,15 @@ export class DemoDashLink {
       this.clenchUntil = performance.now() + 300;
       this.clench.fired_at = t;
       this.clench.count++;
+      let result = "hold_mode", d = null;
       if (this.controlMode === "latch") {
         const dwelled = this.gaze && this.dwellCount >= this.params.dwell;
-        if (this.latched) this.latched = null;
-        else if (dwelled && this.armed) { this.latched = this.gaze; this.latchedAt = t; }
-        else this.clench.ignored_at = t;
+        if (!this.armed) result = "not_armed";
+        else if (this.latched) { result = "unlatched"; d = this.latched; this.latched = null; }
+        else if (dwelled) { result = "latched"; d = this.latched = this.gaze; this.latchedAt = t; }
+        else result = "no_target";
       }
+      this.clench.last = { t, result, direction: d };
     } else if (m.type === "ping") {
       setTimeout(() => this._emit({ type: "pong", t_client: m.t_client, t_hub: performance.now() / 1000 }), 3);
     }
@@ -101,7 +104,9 @@ export class DemoDashLink {
       decode_ms: 9.5,
       params: { ...this.params, latch_max_s: this.latchMax, clench_threshold: this.clench.threshold },
       control_mode: this.controlMode, latched: this.latched,
-      latched_at: this.latched ? this.latchedAt : null, clench: { ...this.clench },
+      latch: this.latched ? { elapsed_s: now / 1000 - this.latchedAt, max_s: this.latchMax,
+                              left_s: Math.max(0, this.latchMax - (now / 1000 - this.latchedAt)) } : null,
+      clench: { ...this.clench },
       eeg: { device: "demo", port: null, fs: 250, channels: ["P7", "P8", "O1", "O2"], ok: true, stalled_s: 0,
              quality: [{ name: "O1", std_uv: 5.2, railed: false }, { name: "O2", std_uv: 6.1, railed: false },
                        { name: "P7", std_uv: 7.9, railed: false }, { name: "P8", std_uv: 250, railed: true }] },

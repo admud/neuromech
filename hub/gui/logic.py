@@ -161,7 +161,11 @@ class FrameLog:
     """Per-frame record for --log-frames, kept in memory (no disk I/O in the
     render loop) and written as CSV at exit."""
 
-    COLUMNS = ["frame", "t_pred", "t_flip"] + ["L_" + t for t in TARGETS] + ["f_" + t for t in TARGETS]
+    # work_ms: CPU time this thread spent on the frame (flip return -> next
+    # flip call). Near 8.3 ms at 120 Hz would be our fault; late frames with
+    # small work_ms come from outside (other processes, GPU contention).
+    COLUMNS = (["frame", "t_pred", "t_flip"] + ["L_" + t for t in TARGETS] + ["f_" + t for t in TARGETS]
+               + ["work_ms"])
 
     def __init__(self, path, chunk=120 * 60):
         self.path = path
@@ -169,38 +173,44 @@ class FrameLog:
         self.rows = np.empty((chunk, len(self.COLUMNS)))
         self.n = 0
 
-    def add(self, frame, t_pred, t_flip, lv, freqs):
+    def add(self, frame, t_pred, t_flip, lv, freqs, work_ms=0.0):
         if self.n == len(self.rows):
             self.rows = np.concatenate([self.rows, np.empty((self.chunk, len(self.COLUMNS)))])
         r = self.rows[self.n]
         r[0], r[1], r[2] = frame, t_pred, t_flip
         r[3:7] = lv
         r[7:11] = freqs
+        r[11] = work_ms
         self.n += 1
 
     def save(self):
         np.savetxt(self.path, self.rows[:self.n], delimiter=",", header=",".join(self.COLUMNS),
-                   comments="", fmt=["%d", "%.6f", "%.6f"] + ["%.4f"] * 4 + ["%.3f"] * 4)
+                   comments="", fmt=["%d", "%.6f", "%.6f"] + ["%.4f"] * 4 + ["%.3f"] * 4 + ["%.3f"])
         return self.n
 
 
 class LatchView:
     """What the latch-mode overlays show, derived from `state` (Phase 6).
 
-    State fields (all optional; absent = hold mode, nothing latched):
-    control_mode, latched, latched_at (t_hub), params.latch_max_s,
-    clench {z, threshold, fired_at, count, ignored_at} (times in t_hub).
+    Engine fields (all optional; absent = hold mode, nothing latched):
+    - control_mode "hold"|"latch", latched (direction or null);
+    - latch {elapsed_s, max_s, left_s} while latched (the timer bar);
+    - clench {z, threshold, fired_at, count, last {t, result, direction}},
+      result one of latched / unlatched / no_target / not_armed / hold_mode.
+    Fallbacks from the first proposal: latched_at + params.latch_max_s for
+    the timer, clench.ignored_at for "no target". Times are t_hub.
 
-    Events (a clench fired, a clench found no target) are detected as
-    *changes* of fired_at / ignored_at, so a stale value seen on connect
-    doesn't flash, and each event shows once for a fixed time.
+    Events are detected as *changes* (of clench.last.t, else fired_at), so a
+    stale event seen on connect doesn't flash, and each shows for a fixed time.
     """
 
     def __init__(self, flash_s=0.4, no_target_s=1.5, recent_s=1.0):
-        self.flash_s, self.no_target_s, self.recent_s = flash_s, no_target_s, recent_s
-        self._fired = self._ignored = None
+        self.flash_s, self.recent_s = flash_s, recent_s
+        self.notice_s = {"no_target": no_target_s, "not_armed": no_target_s}
+        self._event = self._ignored = None
         self._seen = False
-        self.flash_until = self.no_target_until = -1.0
+        self.flash_until = -1.0
+        self.notice, self.notice_until = None, -1.0
 
     def update(self, s, now, t_hub):
         """s: state dict or None; now: monotonic seconds; t_hub: interpolated hub time or None."""
@@ -208,27 +218,38 @@ class LatchView:
         mode = s.get("control_mode") or "hold"
         latched = s.get("latched") if s.get("latched") in TARGETS else None
         clench = s.get("clench") if isinstance(s.get("clench"), dict) else {}
-        fired, ignored = clench.get("fired_at"), clench.get("ignored_at")
+        last = clench.get("last") if isinstance(clench.get("last"), dict) else None
+        event_t = last.get("t") if last else clench.get("fired_at")
+        ignored = clench.get("ignored_at")
         if self._seen:
-            if fired is not None and fired != self._fired and self._recent(fired, t_hub):
+            if event_t is not None and event_t != self._event and self._recent(event_t, t_hub):
                 self.flash_until = now + self.flash_s
+                result = last.get("result") if last else None
+                if result in self.notice_s:
+                    self.notice, self.notice_until = result, now + self.notice_s[result]
             if ignored is not None and ignored != self._ignored and self._recent(ignored, t_hub):
-                self.no_target_until = now + self.no_target_s
+                self.notice, self.notice_until = "no_target", now + self.notice_s["no_target"]
         if s:
-            self._fired, self._ignored, self._seen = fired, ignored, True
+            self._event, self._ignored, self._seen = event_t, ignored, True
 
         frac = remaining = None
+        latch = s.get("latch") if isinstance(s.get("latch"), dict) else None
         params = s.get("params") if isinstance(s.get("params"), dict) else {}
-        max_s = params.get("latch_max_s") or 3.0
-        at = s.get("latched_at")
-        if latched and isinstance(at, (int, float)) and t_hub is not None and max_s > 0:
-            remaining = max(0.0, max_s - (t_hub - at))
+        t_state = s.get("t_hub")
+        age = t_hub - t_state if t_hub is not None and isinstance(t_state, (int, float)) else 0.0
+        if latched and latch and isinstance(latch.get("left_s"), (int, float)) and latch.get("max_s"):
+            remaining = max(0.0, latch["left_s"] - age)     # interpolated between 10 Hz states
+            frac = remaining / latch["max_s"]
+        elif latched and isinstance(s.get("latched_at"), (int, float)) and t_hub is not None:
+            max_s = params.get("latch_max_s") or 3.0
+            remaining = max(0.0, max_s - (t_hub - s["latched_at"]))
             frac = remaining / max_s
+        notice = self.notice if now < self.notice_until and latched is None else None
         return {"mode": mode, "latched": latched,
                 "preview": mode == "latch" and latched is None,
                 "flash": now < self.flash_until,
-                # a no-target clench is news only while nothing is latched
-                "no_target": now < self.no_target_until and latched is None,
+                "notice": notice,                       # "no_target" | "not_armed" | None
+                "no_target": notice == "no_target",
                 "frac": frac, "remaining_s": remaining}
 
     def _recent(self, t_event, t_hub):

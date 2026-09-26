@@ -27,6 +27,9 @@ def timing(d):
             "fps": (len(t) - 1) / float(t[-1] - t[0]),
             "median_ms": med, "p95_ms": float(np.percentile(dt, 95)),
             "max_ms": float(dt.max()), "late": late, "late_pct": 100.0 * late / len(dt),
+            # our own per-frame CPU work (0 in logs from before it was recorded)
+            "work_ms_p95": float(np.percentile(d["work_ms"][1:], 95)) if "work_ms" in d else 0.0,
+            "work_ms_max": float(d["work_ms"][1:].max()) if "work_ms" in d else 0.0,
             # how far the prediction used for the levels was from the real flip
             "pred_err_ms_p95": float(np.percentile(np.abs(d["t_flip"] - d["t_pred"]) * 1000, 95))}
 
@@ -61,7 +64,8 @@ def main(argv=None):
     tm = timing(d)
     print("%(frames)d frames over %(seconds).1f s: %(fps).2f fps, median %(median_ms).2f ms, "
           "p95 %(p95_ms).2f ms, max %(max_ms).1f ms, late %(late)d (%(late_pct).2f%%), "
-          "prediction error p95 %(pred_err_ms_p95).2f ms" % tm)
+          "prediction error p95 %(pred_err_ms_p95).2f ms; our work per frame p95 %(work_ms_p95).2f ms, "
+          "max %(work_ms_max).1f ms" % tm)
     ok = True
     for s, e in segments(d):
         t = d["t_flip"][s:e]

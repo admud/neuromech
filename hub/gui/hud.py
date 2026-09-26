@@ -121,13 +121,17 @@ class Hud:
         self.notarget_text = Text("no target - look at a circle, then clench", pos=(0, -h * 0.20),
                                   anchor_x="center", anchor_y="center", height=40 * u, bold=True,
                                   color=[1, 0.2, -0.4])
+        self.notarmed_text = Text("clench ignored - not armed", pos=(0, -h * 0.20),
+                                  anchor_x="center", anchor_y="center", height=40 * u, bold=True,
+                                  color=[1, 0.2, -0.4])
         self.latch = {"mode": "hold", "latched": None, "preview": False, "flash": False,
-                      "no_target": False, "frac": None}
+                      "notice": None, "no_target": False, "frac": None}
         # Rasterise every glyph we'll ever show now, not mid-run: a new glyph
         # costs a texture upload, which made the first seconds' frames late.
         warm = "".join(chr(c) for c in range(32, 127)) + "".join(GLYPH.values())
         for t in (self.armstate, self.reason, self.status, self.help, self.timing, self.banner,
-                  *self.latch_texts.values(), self.preview_text, self.clench_text, self.notarget_text):
+                  *self.latch_texts.values(), self.preview_text, self.clench_text, self.notarget_text,
+                  self.notarmed_text):
             keep = t.text
             t.text = warm
             t.draw()
@@ -213,8 +217,10 @@ class Hud:
             self.latch_texts[lt["latched"]].draw()
         elif lt["preview"] and self.connected:
             self.preview_text.draw()
-        if lt["no_target"]:
+        if lt["notice"] == "no_target":
             self.notarget_text.draw()
+        elif lt["notice"] == "not_armed":
+            self.notarmed_text.draw()
         elif lt["flash"]:
             self.clench_text.draw()
         if not self.connected:
