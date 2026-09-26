@@ -182,3 +182,54 @@ class FrameLog:
         np.savetxt(self.path, self.rows[:self.n], delimiter=",", header=",".join(self.COLUMNS),
                    comments="", fmt=["%d", "%.6f", "%.6f"] + ["%.4f"] * 4 + ["%.3f"] * 4)
         return self.n
+
+
+class LatchView:
+    """What the latch-mode overlays show, derived from `state` (Phase 6).
+
+    State fields (all optional; absent = hold mode, nothing latched):
+    control_mode, latched, latched_at (t_hub), params.latch_max_s,
+    clench {z, threshold, fired_at, count, ignored_at} (times in t_hub).
+
+    Events (a clench fired, a clench found no target) are detected as
+    *changes* of fired_at / ignored_at, so a stale value seen on connect
+    doesn't flash, and each event shows once for a fixed time.
+    """
+
+    def __init__(self, flash_s=0.4, no_target_s=1.5, recent_s=1.0):
+        self.flash_s, self.no_target_s, self.recent_s = flash_s, no_target_s, recent_s
+        self._fired = self._ignored = None
+        self._seen = False
+        self.flash_until = self.no_target_until = -1.0
+
+    def update(self, s, now, t_hub):
+        """s: state dict or None; now: monotonic seconds; t_hub: interpolated hub time or None."""
+        s = s or {}
+        mode = s.get("control_mode") or "hold"
+        latched = s.get("latched") if s.get("latched") in TARGETS else None
+        clench = s.get("clench") if isinstance(s.get("clench"), dict) else {}
+        fired, ignored = clench.get("fired_at"), clench.get("ignored_at")
+        if self._seen:
+            if fired is not None and fired != self._fired and self._recent(fired, t_hub):
+                self.flash_until = now + self.flash_s
+            if ignored is not None and ignored != self._ignored and self._recent(ignored, t_hub):
+                self.no_target_until = now + self.no_target_s
+        if s:
+            self._fired, self._ignored, self._seen = fired, ignored, True
+
+        frac = remaining = None
+        params = s.get("params") if isinstance(s.get("params"), dict) else {}
+        max_s = params.get("latch_max_s") or 3.0
+        at = s.get("latched_at")
+        if latched and isinstance(at, (int, float)) and t_hub is not None and max_s > 0:
+            remaining = max(0.0, max_s - (t_hub - at))
+            frac = remaining / max_s
+        return {"mode": mode, "latched": latched,
+                "preview": mode == "latch" and latched is None,
+                "flash": now < self.flash_until,
+                # a no-target clench is news only while nothing is latched
+                "no_target": now < self.no_target_until and latched is None,
+                "frac": frac, "remaining_s": remaining}
+
+    def _recent(self, t_event, t_hub):
+        return t_hub is None or t_hub - t_event <= self.recent_s

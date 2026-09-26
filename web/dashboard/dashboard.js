@@ -145,6 +145,10 @@ function onKey(type, key, { twin = false, typing = false, repeat = false } = {})
     else release(id);
     return true;
   }
+  if (k === "k" && type === "keydown" && !repeat) {
+    if (state && state.sim) simClench();
+    return true;
+  }
   if (k in GAZE_KEY && type === "keydown" && !repeat) {
     if (state && state.sim) send({ type: "sim_gaze", target: GAZE_KEY[k] });
     return true;
@@ -333,7 +337,8 @@ function render() {
 
   const c = s && s.command;
   $("cmd-dir").textContent = c && c.direction ? ARROW[c.direction] + " " + c.direction : "·";
-  $("cmd-detail").textContent = c ? `vx ${fmt(c.vx)} vy ${fmt(c.vy)} · ${c.source || "none"}` : "";
+  $("cmd-detail").textContent = c ? `vx ${fmt(c.vx)} vy ${fmt(c.vy)} · ${c.source || "none"}`
+    + (s.latched ? " · LATCHED" : s.control_mode === "latch" ? " · latch mode" : "") : "";
 
   if (s && s.hub && s.hub.phone_url) $("phone-url").textContent = s.hub.phone_url;
 
@@ -369,6 +374,7 @@ function render() {
   }
 
   renderLinks(s);
+  renderControl(s);
   renderOverride();
   syncForm();
 }
@@ -460,7 +466,119 @@ $("btn-fs").addEventListener("click", (e) => {
   if (f) { const p = f.call(iframe); if (p && p.catch) p.catch(() => {}); }
 });
 
-render();
 
 window.__dash = { get state() { return state; }, get config() { return config; }, hub, video,
                   get holds() { return holds; }, get sentDir() { return sentDir; } };
+
+// ------------------------------------------------------------------ control: hold / latch, clench (Phase 6)
+//
+// State fields (optional; a hub without them hides this panel's controls):
+// control_mode, latched, latched_at, clench {z, threshold, fired_at, count,
+// ignored_at}, params.latch_max_s / clench_threshold. Times are t_hub.
+
+const thr = $("thr");
+const latchMax = $("latchmax");
+let thrPending = null;      // value sent, until the hub echoes it
+let lastIgnored = null;
+let noTargetUntil = 0;
+
+for (const b of document.querySelectorAll("[data-mode]")) {
+  b.addEventListener("click", () => {
+    send({ type: "set_config", control_mode: b.dataset.mode });
+    b.blur();
+  });
+}
+thr.addEventListener("input", () => { $("thr-val").textContent = Number(thr.value).toFixed(1); });
+thr.addEventListener("change", () => {
+  thrPending = Number(thr.value);
+  send({ type: "set_config", clench_threshold: thrPending });
+  clenchStatus("threshold " + thrPending + " sent…", "");
+  thr.blur();
+});
+latchMax.addEventListener("input", () => latchMax.classList.add("dirty"));
+function sendLatchMax() {
+  const v = Number(latchMax.value);
+  if (!Number.isFinite(v) || v <= 0) { clenchStatus("max latch must be > 0", "bad"); return; }
+  latchMax.classList.remove("dirty");
+  send({ type: "set_config", latch_max_s: v });
+  clenchStatus("max latch " + v + " s sent…", "");
+}
+$("latchmax-set").addEventListener("click", (e) => { sendLatchMax(); e.currentTarget.blur(); });
+latchMax.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); sendLatchMax(); latchMax.blur(); }
+});
+function simClench() { send({ type: "sim_clench" }); flash($("btn-simclench")); }
+$("btn-simclench").addEventListener("click", (e) => { simClench(); e.currentTarget.blur(); });
+
+function clenchStatus(txt, cls) {
+  const el = $("clench-status");
+  el.textContent = txt;
+  el.className = "hint " + cls;
+}
+
+function renderControl(s) {
+  const panel = $("control");
+  const has = !!(s && s.control_mode);
+  panel.classList.toggle("nolatch", !has);
+  $("mode-hint").textContent = !s ? "" : has
+    ? (s.control_mode === "latch" ? "look to select, clench to go / stop" : "moves while you look")
+    : "this hub has no latch mode";
+  $("btn-simclench").hidden = !(s && s.sim && has);
+  if (!has) return;
+
+  for (const b of document.querySelectorAll("[data-mode]")) b.classList.toggle("on", b.dataset.mode === s.control_mode);
+
+  const p = s.params || {};
+  const cl = s.clench || {};
+  const maxS = p.latch_max_s || 3;
+  const latched = IDS.includes(s.latched) ? s.latched : null;
+  const el = $("latched");
+  el.textContent = latched ? `LATCHED ${ARROW[latched]} ${latched}` : (s.control_mode === "latch" ? "not latched" : "");
+  el.classList.toggle("on", !!latched);
+  $("latchbar").hidden = !latched;
+  if (latched && typeof s.latched_at === "number" && typeof s.t_hub === "number") {
+    const left = Math.max(0, maxS - (s.t_hub - s.latched_at));
+    $("latchfill").style.width = (100 * left / maxS) + "%";
+  }
+
+  // z meter, scaled so the threshold sits at 40% (room to see big clenches).
+  const threshold = typeof cl.threshold === "number" ? cl.threshold
+    : typeof p.clench_threshold === "number" ? p.clench_threshold : null;
+  const z = typeof cl.z === "number" ? cl.z : null;
+  $("clench-z").textContent = z == null ? "–" : z.toFixed(1);
+  const scale = Math.max(threshold ? threshold * 2.5 : 20, 5);
+  $("zfill").style.width = (z == null ? 0 : Math.min(100, Math.max(0, z) / scale * 100)) + "%";
+  $("zfill").classList.toggle("over", z != null && threshold != null && z >= threshold);
+  $("zthr").style.left = (threshold != null ? Math.min(100, threshold / scale * 100) : 0) + "%";
+
+  const ago = typeof cl.fired_at === "number" && typeof s.t_hub === "number" ? s.t_hub - cl.fired_at : null;
+  $("clench-info").textContent = `· count ${cl.count ?? 0}` + (ago != null ? ` · last ${ago.toFixed(1)} s ago` : "");
+
+  // "no target": a clench arrived with nothing dwelled to latch. Shown on a
+  // change of ignored_at (a stale one seen on connect only if it's recent).
+  if (typeof cl.ignored_at === "number" && cl.ignored_at !== lastIgnored) {
+    if (lastIgnored !== null || (typeof s.t_hub === "number" && s.t_hub - cl.ignored_at < 2)) {
+      noTargetUntil = performance.now() + 2500;
+    }
+    lastIgnored = cl.ignored_at;
+  }
+  $("notarget").textContent = !latched && performance.now() < noTargetUntil ? "clench ignored: no target (look at a circle first)" : "";
+
+  // Controls follow the hub unless the operator is mid-edit.
+  if (threshold != null) {
+    if (thrPending != null && Math.abs(thrPending - threshold) < 1e-6) {
+      clenchStatus("threshold " + threshold + " applied", "good");
+      thrPending = null;
+    }
+    if (thrPending == null && document.activeElement !== thr) {
+      thr.value = threshold;
+      $("thr-val").textContent = Number(threshold).toFixed(1);
+    }
+  }
+  if (!latchMax.classList.contains("dirty") && document.activeElement !== latchMax
+      && latchMax.value !== String(maxS)) {
+    latchMax.value = maxS;
+  }
+}
+
+render();

@@ -33,6 +33,7 @@ class HubClient:
         self._freqs = DEFAULT_FREQS
         self.config_id = None
         self._state = None
+        self.state_rx = 0.0          # monotonic time the last state arrived
         self.rtt_ms = None
         self.open = {"phone": False, "dashboard": False, "video": False}
         self.connects = {"phone": 0, "dashboard": 0, "video": 0}
@@ -54,6 +55,14 @@ class HubClient:
     @property
     def state(self):
         return self._state
+
+    def hub_time(self, now):
+        """Estimate of the hub's clock (state.t_hub) at monotonic time `now`,
+        interpolated between the 10 Hz state messages. None without state."""
+        s = self._state
+        if not s or not isinstance(s.get("t_hub"), (int, float)):
+            return None
+        return s["t_hub"] + (now - self.state_rx)
 
     def send_phone(self, msg):
         return self._send("phone", msg)
@@ -155,6 +164,7 @@ class HubClient:
             return
         kind = m.get("type")
         if kind == "state":
+            self.state_rx = time.monotonic()
             self._state = m
         elif kind == "config" and isinstance(m.get("targets"), list):
             freqs = list(self._freqs)

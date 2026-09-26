@@ -144,3 +144,53 @@ def test_analyzer_splits_on_live_frequency_change(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "configured 11/14/17/20 -> measured 11.00/14.00/17.00/20.00 OK" in out
     assert "configured 12/14/17/20 -> measured 12.00/14.00/17.00/20.00 OK" in out
+
+
+def _st(**kw):
+    base = {"control_mode": "latch", "latched": None, "latched_at": None, "params": {"latch_max_s": 3.0},
+            "clench": {"z": 1.0, "fired_at": None, "count": 0, "ignored_at": None}}
+    base.update(kw)
+    return base
+
+
+def test_latch_view_hold_mode_and_missing_fields():
+    from hub.gui.logic import LatchView
+    v = LatchView()
+    # An older hub without Phase 6 fields reads as hold mode, nothing latched.
+    out = v.update({"armed": True}, now=0.0, t_hub=100.0)
+    assert out["mode"] == "hold" and not out["preview"] and out["latched"] is None and out["frac"] is None
+    assert v.update(None, now=0.1, t_hub=None)["mode"] == "hold"
+
+
+def test_latch_view_preview_latch_timer_and_flash():
+    from hub.gui.logic import LatchView
+    v = LatchView(flash_s=0.4, no_target_s=1.5)
+    out = v.update(_st(), now=10.0, t_hub=100.0)
+    assert out["preview"] and not out["flash"] and not out["no_target"]
+    # clench latches "up" at t_hub 100.5
+    s = _st(latched="up", latched_at=100.5, clench={"z": 20, "fired_at": 100.5, "count": 1})
+    out = v.update(s, now=10.6, t_hub=100.6)
+    assert out["latched"] == "up" and not out["preview"] and out["flash"]
+    assert math.isclose(out["frac"], (3.0 - 0.1) / 3.0) and math.isclose(out["remaining_s"], 2.9)
+    assert not v.update(s, now=11.1, t_hub=101.1)["flash"]          # flash is short
+    assert v.update(s, now=13.0, t_hub=104.0)["frac"] == 0.0         # clamped at the end
+
+
+def test_latch_view_no_target_and_stale_events_on_connect():
+    from hub.gui.logic import LatchView
+    v = LatchView(no_target_s=1.5)
+    # First state already carries an old clench: no flash, no "no target".
+    old = _st(clench={"z": 1, "fired_at": 50.0, "count": 3, "ignored_at": 50.0})
+    out = v.update(old, now=0.0, t_hub=100.0)
+    assert not out["flash"] and not out["no_target"]
+    # A new ignored clench: "no target" shows for 1.5 s.
+    s = _st(clench={"z": 20, "fired_at": 101.0, "count": 4, "ignored_at": 101.0})
+    assert v.update(s, now=1.0, t_hub=101.0)["no_target"]
+    assert v.update(s, now=2.4, t_hub=102.4)["no_target"]
+    assert not v.update(s, now=2.6, t_hub=102.6)["no_target"]
+    # An event that is already old when first seen changing (e.g. after a reconnect gap) is skipped.
+    s2 = _st(clench={"z": 1, "fired_at": 90.0, "count": 5, "ignored_at": 90.0})
+    assert not v.update(s2, now=3.0, t_hub=103.0)["no_target"]
+    # "no target" never shows while something is latched.
+    s3 = _st(latched="left", latched_at=104.0, clench={"z": 1, "fired_at": 104.0, "count": 6, "ignored_at": 103.9})
+    assert not v.update(s3, now=4.0, t_hub=104.0)["no_target"]

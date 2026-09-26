@@ -46,6 +46,29 @@
       <div id="warnings"></div>
     </div>
 
+    <div class="panel" id="control">
+      <div class="panel-head"><h2>Control</h2><span id="mode-hint" class="hint"></span></div>
+      <div class="mode-row">
+        <button type="button" data-mode="hold" title="rover moves while you look at a circle">HOLD</button>
+        <button type="button" data-mode="latch" title="look to select, clench to go, clench to stop">LATCH</button>
+        <div id="latched">not latched</div>
+      </div>
+      <div id="latchbar" hidden><div id="latchfill"></div></div>
+      <div class="clench-row">
+        <span class="label">clench z</span> <b id="clench-z">&ndash;</b>
+        <span id="clench-info" class="hint"></span>
+      </div>
+      <div id="zmeter"><div id="zfill"></div><div id="zthr"></div></div>
+      <div id="notarget" class="warn"></div>
+      <div class="clench-form">
+        <label>threshold <input id="thr" type="range" min="1" max="40" step="0.5"> <b id="thr-val">&ndash;</b></label>
+        <label>max latch <input id="latchmax" type="number" min="0.5" max="30" step="0.5"> s
+          <button id="latchmax-set" type="button">Set</button></label>
+        <span id="clench-status" class="hint"></span>
+      </div>
+      <button id="btn-simclench" type="button" hidden>sim clench (K)</button>
+    </div>
+
     <div class="panel" id="drive">
       <div class="panel-head"><h2>Drive</h2><span class="hint">arrows / WASD, needs ARMED</span></div>
       <div class="drive-row">

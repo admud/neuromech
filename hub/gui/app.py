@@ -17,7 +17,7 @@ import time
 
 import numpy as np
 
-from .logic import (TARGETS, ArmHold, DriveKeys, FrameLog, FrameStats, Layout,
+from .logic import (TARGETS, ArmHold, DriveKeys, FrameLog, FrameStats, LatchView, Layout,
                     OverrideSender, levels)
 from .net import HubClient
 from .video import VideoDecoder
@@ -196,6 +196,7 @@ class App:
         self.armhold = ArmHold(1.0)
         self.drive = DriveKeys()
         override = OverrideSender(0.2)
+        latch_view = LatchView()
         self.decoder = dec = VideoDecoder().start()
         self.hub = hub = HubClient(a.hub, on_video=None if a.no_video else dec.push,
                                    hello_screen={"w": int(W), "h": int(H), "dpr": 1,
@@ -274,6 +275,7 @@ class App:
                     hud.set_arm(False, "phone_lost" if not hud.connected else None)
                     hud.winner = None
                     hud.set_arrow(None, None)
+                hud.set_latch(latch_view.update(s, now, hub.hub_time(now)))
                 hud.arm_progress = self.armhold.progress(now)
                 hud.draw()
 
@@ -340,6 +342,9 @@ def status_line(hub, s, summary, video_fps):
              + (" %d ms" % hub.rtt_ms if hub.rtt_ms is not None else "")]
     eeg = (s or {}).get("eeg") or {}
     parts.append("EEG " + ("-" if not eeg else ("ok" if eeg.get("ok") else "STALLED")))
+    mode = (s or {}).get("control_mode")
+    if mode:
+        parts.append("mode " + mode)
     rob = (s or {}).get("robot") or {}
     parts.append("robot " + ((rob.get("name") or "ok") if rob.get("connected") else "-"))
     if summary:
