@@ -1,0 +1,241 @@
+"""Translate /ws/robot velocity commands into the rover's UDP words."""
+
+import asyncio
+import json
+import math
+import socket
+import time
+from collections import deque
+from contextlib import suppress
+
+from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
+
+from hub.sim.robot_sim import RobotSim
+
+
+def direction_for(vx: float, vy: float) -> str:
+    """The hub only sends one cardinal axis at a time; forward takes priority."""
+    if vx > 0:
+        return "FWD"
+    if vx < 0:
+        return "BACK"
+    if vy > 0:
+        return "LEFT"
+    if vy < 0:
+        return "RIGHT"
+    return "STOP"
+
+
+def resolve_target(host: str, port: int) -> tuple[str, int]:
+    try:
+        addresses = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_DGRAM)
+    except OSError as exc:
+        raise ValueError(
+            f"Could not resolve UGV host {host!r}: {exc}. "
+            "Use --host with the Pi's IPv4 address."
+        ) from exc
+    if not addresses:
+        raise ValueError(f"Could not resolve UGV host {host!r}; use --host with the Pi's IPv4 address.")
+    return addresses[0][4]
+
+
+class UgvBridge:
+    def __init__(self, hub="ws://127.0.0.1:8765/ws/robot", host="NeuroMech.local",
+                 port=5005, repeat=0.5, video="test", dry_run=False):
+        if repeat <= 0 or not math.isfinite(repeat):
+            raise ValueError("--repeat must be a positive finite number")
+        if not 1 <= port <= 65535:
+            raise ValueError("--port must be between 1 and 65535")
+        self.hub = hub
+        self.target = resolve_target(host, port)
+        self.repeat_s = repeat
+        self.video = video
+        self.dry_run = dry_run
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.direction = "STOP"
+        self.last_udp_command = None
+        self.last_udp_at = None
+        self.pending_stops = deque()
+        self.last_cmd_at = None
+        self.ttl_s = 0.5
+        self.watchdog_stopped = True
+        self.vx = self.vy = 0.0
+        self.seq = 0
+        self._last_emergency_at = None
+        self.camera = RobotSim(video="test", fps=10) if video == "test" else None
+
+    def _send_udp(self, command: str) -> None:
+        if self.dry_run:
+            print(f"UDP {self.target[0]}:{self.target[1]} {command}", flush=True)
+        else:
+            self.socket.sendto(command.encode("ascii"), self.target)
+        self.last_udp_command = command
+        self.last_udp_at = time.monotonic()
+
+    def _stop_burst(self, now: float) -> None:
+        """Send the first STOP now; schedule two more without queuing motion."""
+        self.direction = "STOP"
+        self.pending_stops.clear()
+        self._send_udp("STOP")
+        self.pending_stops.extend((now + 0.02, now + 0.04))
+
+    def emergency_stop(self) -> None:
+        """Synchronous best-effort exit path, including cancellation and Ctrl+C."""
+        self.direction = "STOP"
+        self.watchdog_stopped = True
+        self.pending_stops.clear()
+        sent = 0
+        for index in range(3):
+            if index:
+                time.sleep(0.02)
+            try:
+                self._send_udp("STOP")
+                sent += 1
+            except OSError as exc:
+                print(f"UGV STOP send failed: {exc}", flush=True)
+        self._last_emergency_at = time.monotonic() if sent == 3 else None
+
+    def on_command(self, message: dict) -> None:
+        vx, vy = message.get("vx"), message.get("vy")
+        if (not isinstance(vx, (int, float)) or isinstance(vx, bool)
+                or not isinstance(vy, (int, float)) or isinstance(vy, bool)
+                or not math.isfinite(vx) or not math.isfinite(vy)):
+            return
+        now = time.monotonic()
+        ttl = message.get("ttl_ms", 500)
+        if isinstance(ttl, (int, float)) and math.isfinite(ttl):
+            self.ttl_s = min(0.5, max(0.0, float(ttl) / 1000))
+        else:
+            self.ttl_s = 0.5
+        self.last_cmd_at = now
+        self.watchdog_stopped = False
+        self.vx, self.vy = float(vx), float(vy)
+        self.seq = message.get("seq", self.seq)
+        new_direction = direction_for(self.vx, self.vy)
+        if new_direction == self.direction:
+            return
+        if new_direction == "STOP":
+            self._stop_burst(now)
+        else:
+            # A fresh direction supersedes pending STOP duplicates; no old
+            # packet can be sent after this one.
+            self.pending_stops.clear()
+            self.direction = new_direction
+            self._send_udp(new_direction)
+
+    async def _udp_loop(self):
+        while True:
+            now = time.monotonic()
+            if (not self.watchdog_stopped and self.last_cmd_at is not None
+                    and now - self.last_cmd_at >= self.ttl_s):
+                self.watchdog_stopped = True
+                self._stop_burst(now)
+            if self.pending_stops and now >= self.pending_stops[0]:
+                self.pending_stops.popleft()
+                self._send_udp("STOP")
+                if self.pending_stops:
+                    self.pending_stops[0] = max(self.pending_stops[0],
+                                                time.monotonic() + 0.02)
+            interval = 1.0 if self.direction == "STOP" else self.repeat_s
+            if (not self.pending_stops and self.last_udp_at is not None
+                    and now - self.last_udp_at >= interval):
+                self._send_udp(self.direction)
+            await asyncio.sleep(0.005)
+
+    async def _receive(self, ws, send_lock):
+        async for raw in ws:
+            if not isinstance(raw, str):
+                continue
+            try:
+                message = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(message, dict):
+                continue
+            if message.get("type") == "cmd":
+                self.on_command(message)
+            elif message.get("type") == "ping":
+                async with send_lock:
+                    await ws.send(json.dumps({"type": "pong", "t_hub": message.get("t_hub")}))
+
+    async def _report(self, ws, send_lock):
+        next_telemetry = next_video = time.monotonic()
+        while True:
+            now = time.monotonic()
+            if now >= next_telemetry:
+                message = {"type": "telemetry", "vx": self.vx, "vy": self.vy,
+                           "watchdog_stopped": self.watchdog_stopped,
+                           "last_udp_command": self.last_udp_command,
+                           "battery_v": None}
+                async with send_lock:
+                    await ws.send(json.dumps(message))
+                next_telemetry = now + 0.2
+            if self.camera is not None and now >= next_video:
+                self.camera.vx = 0.0 if self.direction == "STOP" else self.vx
+                self.camera.vy = 0.0 if self.direction == "STOP" else self.vy
+                self.camera.seq = self.seq
+                self.camera.watchdog_stopped = self.watchdog_stopped
+                async with send_lock:
+                    await ws.send(self.camera.get_frame())
+                next_video = now + 0.1
+            await asyncio.sleep(0.01)
+
+    async def session(self, ws, udp_task):
+        # Each new hub connection must receive a fresh command before motion.
+        self.last_cmd_at = None
+        self.watchdog_stopped = True
+        send_lock = asyncio.Lock()
+        await ws.send(json.dumps({"type": "hello", "client": "robot", "name": "ugv",
+                                  "video": {"w": 640, "h": 480,
+                                            "fps": 10 if self.camera is not None else 0}}))
+        receiver = asyncio.create_task(self._receive(ws, send_lock))
+        reporter = asyncio.create_task(self._report(ws, send_lock))
+        try:
+            done, _ = await asyncio.wait((receiver, reporter, udp_task),
+                                         return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                task.result()
+        finally:
+            receiver.cancel()
+            reporter.cancel()
+            # Guarantee the STOP burst before any await can be cancelled.
+            self.emergency_stop()
+            await asyncio.gather(receiver, reporter, return_exceptions=True)
+
+    async def run(self):
+        print(f"UGV UDP target: {self.target[0]}:{self.target[1]}", flush=True)
+        self.emergency_stop()
+        udp_task = asyncio.create_task(self._udp_loop())
+        delay = 0.5
+        try:
+            while True:
+                if udp_task.done():
+                    udp_task.result()
+                try:
+                    async with connect(self.hub, max_size=None, open_timeout=5) as ws:
+                        print(f"Connected to hub: {self.hub}", flush=True)
+                        delay = 0.5
+                        await self.session(ws, udp_task)
+                        if ws.close_code == 4001:
+                            print("Replaced as hub robot; exiting.", flush=True)
+                            return
+                except ConnectionClosed as exc:
+                    if exc.rcvd is not None and exc.rcvd.code == 4001:
+                        print("Replaced as hub robot; exiting.", flush=True)
+                        return
+                    print(f"Hub link lost: {exc}; retrying in {delay:.1f}s", flush=True)
+                except OSError as exc:
+                    if udp_task.done():
+                        udp_task.result()
+                    print(f"Hub connection failed: {exc}; retrying in {delay:.1f}s", flush=True)
+                await asyncio.sleep(delay)
+                delay = min(10.0, delay * 2)
+        finally:
+            udp_task.cancel()
+            if (self._last_emergency_at is None
+                    or time.monotonic() - self._last_emergency_at > 0.1):
+                self.emergency_stop()
+            with suppress(asyncio.CancelledError, Exception):
+                await udp_task
+            self.socket.close()
