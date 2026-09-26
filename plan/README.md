@@ -175,6 +175,7 @@ for advice if @main hits a problem it can't solve. Focus by track:
 - 1F robot model: done, tested by @main in Chrome (32 draws, 15,648 tris, wheel signs, roller axes)
 - 2 integration: done in simulation (opus3), accepted by @main (57 tests, integration 19/20 with the known look-away noise, frozen-hub re-run): scenarios 1-14, fixes, `e2e/`, [runbook.md](runbook.md). Next: the user's headset + iPhone test
 - 3A RPi robot: later, needs the robot
+- Virtual robot in Python (opus2, `381a5a6`): `hub --virtual-robot`, CPU-rendered first-person view of the twin's world, no browser. Tested by @main: hub.gui 120.0 fps, 0 late frames, video 20 fps; child exits when the hub dies. World robot.radius aligned to the 3D model (0.18 m).
 - 5 UGV bridge: done (sol, `97c648b`), tested by @main against a fake Pi on localhost: FWD on gaze-up with 0 s delay then every 0.50 s; triple STOP within 63 ms on look-away / disarm / release / replaced-exit; hub-freeze watchdog STOP in 0.25-0.33 s; hardened in `61754b1` (no motion after a watchdog stop until the hub reconnects and sends a zero command; re-verified in 3 live runs). Real rover not yet driven.
 - 4 desktop operator GUI: done (opus), tested by @main: full screen on the 120 Hz panel 119.7 fps, 0.28% late frames; flicker measured exactly 11/14/17/20 Hz (and a live change to 12 Hz) from real flip times; every circle's pixel = its level (859 frames); arm/STOP/gaze/phone_lost work. The operator display for the demo; the phone page is kept.
 

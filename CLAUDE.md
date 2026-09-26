@@ -62,7 +62,8 @@ hub/                    PC hub, Python package, run as `python -m hub`
   gui/                  desktop operator display (psychopy): full-screen video + 4 flicker circles; `python -m hub.gui`
   ugv/                  UGV bridge: hub `cmd` -> the Pi's UDP FWD/BACK/LEFT/RIGHT/STOP (port 5005); `python -m hub.ugv`
   bci/                  board open + dongle auto-detect, decoder wiring, arbiter (safety)
-  sim/                  sim_board.py (fake EEG with SSVEP), robot_sim.py (headless robot, RPi template)
+  sim/                  sim_board.py (fake EEG with SSVEP), robot_sim.py (headless robot, RPi template),
+                        virtual.py (browser-free virtual robot: CPU/OpenCV first-person render of the twin's world)
   tests/                pytest
 web/                    static pages served by the hub, no build step
   phone/                iPhone page: flicker targets + video + STOP/ARM (kept, not used for the demo)
@@ -103,6 +104,7 @@ robot/                  rover side. ugv_controller.py = the team's manual UDP ke
 control\.venv\Scripts\python -m hub                    # real headset, dongle auto-detected
 control\.venv\Scripts\python -m hub --device sim       # fake EEG; drive via dashboard "sim gaze"
 control\.venv\Scripts\python -m hub --stub             # fake engine, for UI work
+control\.venv\Scripts\python -m hub --window 2 --virtual-robot   # hub + the Python virtual robot (no browser); keep the dashboard's Virtual robot switch OFF
 control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
 control\.venv\Scripts\python -m hub.ugv --host NeuroMech.local   # drive the real rover (use the Pi's IP if .local fails); replaces robot_sim
 control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check
@@ -182,6 +184,8 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
   number (C4 = 20 Hz), so it decodes "right" all the time. Use `--device sim`
   to test behaviour.
 - In a full-screen sim iframe, Esc only exits full screen; Space still STOPs.
+- Use `--virtual-robot` (Python, CPU-rendered) for the virtual robot with `hub.gui`: the GUI holds 120.0 fps with it.
+  The browser twin (`/twin/`) drops `hub.gui` to ~85 fps (38% late frames) on the shared Intel GPU.
 - The laptop's Chrome renders on the Intel GPU (4K panel at 1.5x). The phone page on the
   laptop drops to ~60 fps with uneven frames while the dashboard's 3D sim runs, which garbles
   the flicker. Set Chrome to the RTX 3080 (Windows Graphics settings → High performance).

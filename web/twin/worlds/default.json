@@ -2,7 +2,7 @@
   "name": "default",
   "arena": {"size": [6.0, 4.0], "wall_h": 0.3, "wall_t": 0.1},
   "spawn": {"x": -2.5, "y": 0.0, "heading": 0.0},
-  "robot": {"radius": 0.15, "max_speed_mps": 0.5,
+  "robot": {"radius": 0.18, "max_speed_mps": 0.5,
             "camera": {"height_m": 0.25, "pitch_deg": -10, "hfov_deg": 70, "w": 640, "h": 480}},
   "walls": [
     {"x": -1.2, "y": 0.7,  "w": 0.1, "d": 2.6, "h": 0.4, "yaw_deg": 0, "color": "#4f7cc4"},
