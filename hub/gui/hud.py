@@ -20,7 +20,6 @@ ARROW_ORI = {"up": 0, "right": 90, "down": 180, "left": 270}
 GREEN = [-0.6, 1.0, -0.6]
 BLUE = [-0.4, 0.2, 1.0]
 AMBER = [1.0, 0.6, -0.8]            # latch-mode preview: selected, not moving
-CYAN = [-0.4, 0.8, 1.0]             # rover video frozen while it drives
 # Arial has these (not the U+25B6/U+25C0 triangles).
 GLYPH = {"up": "▲", "down": "▼", "left": "◄", "right": "►"}
 KEYS_HELP = "Space/Esc STOP   hold Enter ARM   arrows/WASD drive   F timing   Q quit"
@@ -128,17 +127,12 @@ class Hud:
                                   bold=True, color=[1, 0.2, -0.4])
         self.latch = {"mode": "hold", "latched": None, "preview": False, "flash": False,
                       "notice": None, "no_target": False, "frac": None}
-        # The rover bridge holds the last good frame while the rover drives
-        # (its camera browns out): say so in the margin, above the status line.
-        self.frozen_text = Text("FROZEN", pos=(x0, -h / 2 + pad + 40 * u), anchor_y="bottom",
-                                height=26 * u, bold=True, color=CYAN)
-        self.frozen = False
         # Rasterise every glyph we'll ever show now, not mid-run: a new glyph
         # costs a texture upload, which made the first seconds' frames late.
         warm = "".join(chr(c) for c in range(32, 127)) + "".join(GLYPH.values())
         for t in (self.armstate, self.reason, self.status, self.help, self.timing, self.banner,
                   *self.latch_texts.values(), self.preview_text, self.clench_text, self.notarget_text,
-                  self.notarmed_text, self.frozen_text):
+                  self.notarmed_text):
             keep = t.text
             t.text = warm
             t.draw()
@@ -229,8 +223,6 @@ class Hud:
             self.notarmed_text.draw()
         elif lt["flash"]:
             self.clench_text.draw()
-        if self.frozen and self.connected:
-            self.frozen_text.draw()
         if not self.connected:
             self.banner.draw()
         GL.glPopMatrix()

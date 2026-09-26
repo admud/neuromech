@@ -272,13 +272,10 @@ class App:
                     hud.winner = s.get("winner")
                     c = s.get("command") or {}
                     hud.set_arrow(c.get("direction"), c.get("source"))
-                    tel = (s.get("robot") or {}).get("telemetry") or {}
-                    hud.frozen = bool(tel.get("video_frozen"))
                 else:
                     hud.set_arm(False, "phone_lost" if not hud.connected else None)
                     hud.winner = None
                     hud.set_arrow(None, None)
-                    hud.frozen = False
                 hud.set_latch(latch_view.update(s, now, hub.hub_time(now)))
                 hud.arm_progress = self.armhold.progress(now)
                 hud.draw()

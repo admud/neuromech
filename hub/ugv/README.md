@@ -40,13 +40,14 @@ display.
 browns out while the rover drives ("Signal Lost", or a stalled stream).
 - From the moment the bridge sends a movement word, it stops passing the
   camera's frames on.
-- Instead it re-sends the last frame from before the rover moved, twice a
-  second.
+- Instead it re-sends the last frame from before the rover moved, at the
+  normal 10 fps.
 - Live frames resume **1 s after `STOP`**, time for the camera to recover.
   Change it with `--freeze-settle <s>`.
 - `--no-freeze` turns the freeze off.
-- The telemetry carries `video_frozen`, and the display shows **FROZEN**
-  in the bottom-left margin.
+- **Nothing on the display marks it:** the user's choice, 2026-09-26. Not
+  even the video fps changes. The telemetry carries `video_frozen` if a
+  marker is wanted later.
 - It applies to the test pattern too, so `--dry-run --video test` shows it
   without a rover.
 

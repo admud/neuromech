@@ -197,6 +197,6 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
   the flicker. Set Chrome to the RTX 3080 (Windows Graphics settings → High performance).
 - The rover's camera browns out while the motors run (shared battery). The bridge
   (`hub/ugv/camera.py`) holds the last pre-drive frame until 1 s after the stop
-  (`--freeze-settle`), and the display shows FROZEN.
+  (`--freeze-settle`). The display doesn't mark it (user's choice).
 - The decoder margin defaults to 0.08: at 0.06 the robot crept ~10% of the time
   while looking away in sim. Live look-away-to-stop is ~2.4 s (3 s window).

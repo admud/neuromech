@@ -152,7 +152,7 @@ Robot → hub:
 | kind | body |
 |---|---|
 | text `hello` | `{"type": "hello", "client": "robot", "name": "virtual"\|"sim"\|"rpi", "video": {"w": 640, "h": 480, "fps": 20}}` |
-| text `telemetry` | 2–20 Hz (10 Hz recommended): `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null, "x": 1.2, "y": -0.4, "heading": 0.0, "collision": false}`. Pose fields are optional (the virtual robot and `robot_sim` send them): `x`, `y` in metres in the world frame, `heading` in radians. Optional `video_frozen: true` means the robot is re-sending a held frame instead of live video (the rover bridge does this while driving, because its camera browns out); the desktop display shows FROZEN. |
+| text `telemetry` | 2–20 Hz (10 Hz recommended): `{"type": "telemetry", "vx": 0.3, "vy": 0.0, "watchdog_stopped": false, "battery_v": null, "x": 1.2, "y": -0.4, "heading": 0.0, "collision": false}`. Pose fields are optional (the virtual robot and `robot_sim` send them): `x`, `y` in metres in the world frame, `heading` in radians. Optional `video_frozen: true` means the robot is re-sending a held frame instead of live video (the rover bridge does this while driving, because its camera browns out). The desktop display doesn't mark it, by the user's choice. |
 | text `pong` | `{"type": "pong", "t_hub": 1234.5}` (echo of `ping`) |
 | binary | one complete JPEG frame per message. Target 640x480, quality ~70, <= 20 fps |
 

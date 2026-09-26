@@ -162,27 +162,29 @@ async def _exercise_freeze():
         start = len(frames())
         await drive
         during = frames()[start:]
-        # Every frame sent while driving is the same held picture: 1.2 s at
-        # one re-send per 0.5 s (plus at most one frame already in flight).
-        assert 2 <= len(during) <= 4, len(during)
-        assert len(set(during[-2:])) == 1
+        # Every frame sent while driving is the same held picture, re-sent
+        # at the live 10 fps.
+        assert 9 <= len(during) <= 14, len(during)
+        assert len(set(during)) == 1
         assert True in frozen()
-        await ws.send(json.dumps({"type": "cmd", "vx": 0, "vy": 0, "ttl_ms": 500}))
+        # Like the hub: zero commands keep coming at 10 Hz after the stop.
+        idle = asyncio.create_task(_drive(ws, 2.0, vx=0))
         await eventually(lambda: recorder.words().count("STOP") >= 3)
-        stopped = len(frames())
+        stopped_at = time.monotonic()
         await asyncio.sleep(0.4)                     # inside the settle: still held
         assert len(set(frames()[start:])) == 1
-        await eventually(lambda: len(frames()) > stopped + 3, timeout=1.5)
-        assert frames()[-1] != during[-1]            # live again
+        await eventually(lambda: frames()[-1] != during[-1], timeout=1.5)   # live again
+        assert 0.5 <= time.monotonic() - stopped_at <= 0.8
         await eventually(lambda: frozen()[-1] is False, timeout=0.5)
+        await idle
     finally:
         await teardown_bridge(runner, server, transport)
 
 
-async def _drive(ws, seconds):
+async def _drive(ws, seconds, vx=0.3):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
-        await ws.send(json.dumps({"type": "cmd", "vx": 0.3, "vy": 0, "ttl_ms": 500}))
+        await ws.send(json.dumps({"type": "cmd", "vx": vx, "vy": 0, "ttl_ms": 500}))
         await asyncio.sleep(0.1)
 
 

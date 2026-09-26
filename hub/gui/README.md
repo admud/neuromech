@@ -195,10 +195,7 @@ and more gave 2 of 2). So "clench to stop" right after latching needs a
 ## Rover video freeze (@main, 2026-09-26)
 
 - The rover's camera browns out while the motors run.
-- The bridge (`hub.ugv`) then re-sends the last frame from before the drive,
-  and sets `video_frozen` in its telemetry.
-- The display shows a small cyan **FROZEN** in the bottom-left margin, above
-  the status line, while that flag is set.
-- The status line's video fps drops to ~2 then: those are the re-sends.
-- The label is prebuilt and warmed at startup like the others, so showing it
-  costs no late frame.
+- The bridge (`hub.ugv`) then re-sends the last frame from before the drive
+  at the normal rate, and sets `video_frozen` in its telemetry.
+- **The display doesn't mark it** (the user's choice). A FROZEN badge was
+  tried and removed. `video_frozen` is there if one is wanted later.

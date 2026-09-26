@@ -107,9 +107,9 @@ class FreezeGate:
 
     A frame is good if it arrived before the current drive started, or at
     least `settle_s` after the last one ended. Bad frames are dropped. While
-    frozen, the last good frame is re-sent every `resend_s`, so a viewer that
-    joins mid-drive still gets a picture (the hub never relays a frame older
-    than 1 s).
+    frozen, the last good frame is re-sent every `resend_s`: the feed keeps
+    its rate, and a viewer that joins mid-drive still gets a picture (the hub
+    never relays a frame older than 1 s).
     """
 
     def __init__(self, settle_s=1.0, enabled=True, resend_s=0.5):

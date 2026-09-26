@@ -91,8 +91,8 @@ if that name doesn't resolve.
   `1` for a USB video receiver.
   - Use `--video none` for no video, or `test` for a test pattern.
 - **Brown-outs:** the camera browns out while the motors run. The display
-  therefore holds the last frame from before the rover moved, marked
-  **FROZEN**, and goes live again 1 s after it stops. See
+  therefore holds the last frame from before the rover moved, and goes live
+  again 1 s after it stops. See
   [`hub/ugv/`](hub/ugv/README.md#video-and-the-motion-freeze).
 
 **Options:**

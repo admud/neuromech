@@ -75,7 +75,9 @@ class UgvBridge:
         self.camera = RobotSim(video="test", fps=10) if video == "test" else None
         self.feed = CameraFeed(parse_source(video)) if video not in ("test", "none") else None
         self.has_video = video != "none"
-        self.gate = FreezeGate(settle_s=freeze_settle, enabled=not no_freeze)
+        # The held frame goes out at the live rate, so nothing on the display
+        # (not even its video fps) shows the freeze.
+        self.gate = FreezeGate(settle_s=freeze_settle, enabled=not no_freeze, resend_s=0.1)
         self._feed_seq = 0
         self._next_test_frame = 0.0
 
