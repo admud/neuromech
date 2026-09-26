@@ -1,6 +1,29 @@
 # Phase 5: drive the real UGV from the hub
 
-**Agent:** sol · **Tests:** @main · **Status:** plan, waiting for the user's answers and go
+**Agent:** sol · **Tests:** @main · **Status:** approved 2026-09-26, in progress
+
+**User answers (2026-09-26):**
+1. Each command moves the rover for **1 second**, then it stops. So the Pi has
+   a built-in failsafe: at most about 1 s of motion after the last packet.
+2. LEFT/RIGHT are **strafe**, which matches the hub.
+3. **No camera stream yet.** The bridge shows a test image until there is one.
+4. **Fixed speed.** The hub's speed setting doesn't apply to the rover.
+5. The Pi code will be committed to the neuromech repo later. For now,
+   `ugv_controller.py` goes in as a test file.
+
+**Consequence for the design:** we don't know yet whether the Pi *restarts*
+its 1 s timer when a new command arrives, or runs each command's full 1 s
+before reading the next packet (queueing). If it queues, resending too often
+would build a backlog, and `STOP` would be delayed behind it. So the bridge:
+- sends a new direction **immediately** when it changes;
+- **repeats** the current direction every `--repeat` seconds (default 0.5 s),
+  which keeps motion continuous if the Pi restarts its timer;
+- makes `STOP` immediate (sent 3 times) and never queues anything itself.
+
+A quick rover check tells us which case we're in: drive forward for 5 s,
+then STOP, and time how long it keeps rolling. About 0 s means timer
+restart, which is fine. More than 1 s means queueing: set `--repeat 1.0`
+and ask for the Pi listener to be changed to restart its timer.
 
 ## What exists
 The user's `ugv_controller.py` (currently in `C:\Users\User\Downloads`) is a
@@ -28,10 +51,9 @@ that drives the motors. The hub has no way to use it yet.
   - `vy > 0` → `LEFT`
   - `vy < 0` → `RIGHT`
   - zero → `STOP`
-- **Resend every 100 ms,** following the hub's 10 Hz `cmd`, not only on
-  change. UDP can drop packets, and repeating means a lost `STOP` is
-  corrected within 0.1 s. If the Pi keeps the last command until the next
-  one, the repeats are harmless.
+- **Send on change, then repeat every `--repeat` s** (default 0.5 s). The
+  Pi moves 1 s per command, so a 0.5 s repeat keeps it moving smoothly and
+  covers one lost packet. `STOP` goes out immediately, 3 times.
 - **The robot protocol, towards the hub:** `hello`, `telemetry` about 5
   times a second (the last command sent and whether the bridge's watchdog
   has stopped the rover), and replies to `ping`. That keeps the hub's 3 s
