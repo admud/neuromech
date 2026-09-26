@@ -11,12 +11,14 @@ Signal per channel (µV):
   - a little 50 Hz mains
   - while gazing at target i: freqs[i] plus 2nd and 3rd harmonics, strongest
     on O1/O2, weaker on P7/P8, faint elsewhere, scaled by `snr`
+  - during a jaw clench (`clench()`): broadband muscle EMG above ~30 Hz,
+    strongest frontally (Fp1/Fp2) and temporally (P7/P8)
 """
 import threading
 import time
 
 import numpy as np
-from scipy.signal import lfilter
+from scipy.signal import butter, lfilter, sosfilt
 
 EEG_NAMES = ["Fp1", "Fp2", "C3", "C4", "P7", "P8", "O1", "O2"]
 # How strongly each channel picks up the visual cortex response.
@@ -30,6 +32,11 @@ LINE_UV = 1.5
 # Fundamental amplitude on O1/O2 is snr * SSVEP_UV. Real SSVEPs are a few µV
 # against ~10-20 µV of background, i.e. snr around 0.3-0.5.
 SSVEP_UV = 10.0
+
+# Jaw-clench EMG: real clenches reach 50-200 µV on a Cyton; 60 µV rms at
+# Fp1/Fp2 is a modest one.
+EMG_UV = 60.0
+EMG_GAIN = np.array([1.0, 1.0, 0.5, 0.5, 0.9, 0.9, 0.4, 0.4])
 
 HISTORY_S = 10.0
 
@@ -61,7 +68,14 @@ class SimSSVEPBoard:
         self._pink_b, self._pink_a = [1.0], [1.0, -0.97]
         self._pink_zi = np.zeros((9, 1))  # 8 channels + 1 shared
 
+        # Clench EMG: white noise high-passed at 30 Hz, gated by a window of
+        # absolute sample indices [start, end).
+        self._emg_sos = butter(4, 30.0, btype="highpass", fs=self.sfreq, output="sos")
+        self._emg_zi = np.zeros((self._emg_sos.shape[0], 8, 2))
+        self._clench = (0, 0)
+
         self._cap = int(HISTORY_S * self.sfreq)
+        self._drained = 0        # _count value up to which get_board_data() has read
         self._buf = np.zeros((self.n_rows, self._cap))
         self._count = 0          # samples written since start_stream
         self._next_index = 0     # absolute sample index of the next sample
@@ -78,6 +92,7 @@ class SimSSVEPBoard:
             self._t0 = self._clock()
             self._next_index = 0
             self._count = 0
+            self._drained = 0
             self._streaming = True
 
     def stop_stream(self):
@@ -101,7 +116,32 @@ class SimSSVEPBoard:
             idx = (np.arange(end - n, end)) % self._cap
             return self._buf[:, idx].copy()
 
+    def get_board_data_count(self):
+        """Samples not yet taken by get_board_data(), like brainflow's."""
+        with self._lock:
+            self._catch_up()
+            return min(self._count - self._drained, self._cap)
+
+    def get_board_data(self, n=None):
+        """Take (and remove) the samples not yet read, oldest first, like brainflow's."""
+        with self._lock:
+            self._catch_up()
+            avail = min(self._count - self._drained, self._cap)
+            if n is not None:
+                avail = min(avail, int(n))
+            start = self._count - min(self._count - self._drained, self._cap)
+            idx = np.arange(start, start + avail) % self._cap
+            self._drained = start + avail
+            return self._buf[:, idx].copy()
+
     # ---- the simulated user ---------------------------------------------
+    def clench(self, duration_s=0.6):
+        """Jaw clench starting now, lasting `duration_s`."""
+        with self._lock:
+            self._catch_up()   # samples up to now stay clean
+            start = self._next_index
+            self._clench = (start, start + int(round(duration_s * self.sfreq)))
+
     def set_gaze(self, index):
         if index is not None and not 0 <= index < len(self._freqs):
             raise ValueError("gaze index %r out of range" % index)
@@ -167,6 +207,15 @@ class SimSSVEPBoard:
                     continue
                 arg = 2 * np.pi * h * f * t[None, :] + h * (ph + self._ch_lag[:, None])
                 eeg += (amp * rel) * SSVEP_GAIN[:, None] * np.sin(arg)
+
+        c0, c1 = self._clench
+        if c1 > start and c0 < start + n:
+            # 10 ms ramps so the burst itself has no step edges.
+            gate = np.clip(np.minimum(idx - c0, c1 - idx) / (0.01 * fs), 0.0, 1.0)
+            gate[(idx < c0) | (idx >= c1)] = 0.0
+            emg, self._emg_zi = sosfilt(self._emg_sos, self._rng.standard_normal((8, n)),
+                                        axis=1, zi=self._emg_zi)
+            eeg += EMG_UV * EMG_GAIN[:, None] * emg * gate[None, :]
 
         out = np.zeros((self.n_rows, n))
         out[self.counter_row] = idx

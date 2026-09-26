@@ -26,6 +26,8 @@ class OpenBoard:
     ch_names: list
     device: str
     port: str | None
+    all_rows: list = None  # every EEG row, in the board's order (recorder, clench detector)
+    all_names: list = None
 
 
 def _describe(p):
@@ -79,7 +81,8 @@ def open_board(settings) -> OpenBoard:
         board = SimSSVEPBoard([settings.freqs[d] for d in DIRECTIONS])
         board.prepare_session()
         names, rows = pick_channels(board.eeg_names, board.eeg_rows)
-        return OpenBoard(board, board.sfreq, rows, names, device, None)
+        return OpenBoard(board, board.sfreq, rows, names, device, None,
+                         list(board.eeg_rows), list(board.eeg_names))
 
     if device not in ("cyton", "synthetic"):
         raise BoardError("unknown device %r (cyton, synthetic or sim)" % device)
@@ -101,4 +104,5 @@ def open_board(settings) -> OpenBoard:
         raise BoardError("could not open %s%s: %s: %s"
                          % (device, where, type(exc).__name__, exc)) from exc
     names, rows = pick_channels(EEG_CHANNELS[device], EEG_INDICES[device])
-    return OpenBoard(eeg.board, int(eeg.sfreq), rows, names, device, port)
+    return OpenBoard(eeg.board, int(eeg.sfreq), rows, names, device, port,
+                     list(EEG_INDICES[device]), list(EEG_CHANNELS[device]))
