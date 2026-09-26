@@ -75,7 +75,8 @@ web/                    static pages served by the hub, no build step
     worlds/default.json the virtual arena (walls, spawn, robot camera)
     vendor/three/       vendored three.js (no CDN)
 e2e/                    browser/sim end-to-end scenario scripts (node + headless Chrome over CDP); see e2e/README.md
-robot/                  rover side. ugv_controller.py = the team's manual UDP keyboard tool (test file; the Pi code lands later)
+robot/                  rover side. ugv_controller.py = manual UDP keyboard tool (runs on the laptop)
+  pi/                   code on the Raspberry Pi: motor_udp.py (UDP :5005 listener, 0.6 s watchdog), motor + servo tests
 ```
 
 ## Environment

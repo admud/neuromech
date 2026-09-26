@@ -42,7 +42,7 @@ def resolve_target(host: str, port: int) -> tuple[str, int]:
 
 class UgvBridge:
     def __init__(self, hub="ws://127.0.0.1:8765/ws/robot", host="NeuroMech.local",
-                 port=5005, repeat=0.5, video="test", dry_run=False):
+                 port=5005, repeat=0.2, video="test", dry_run=False):
         if repeat <= 0 or not math.isfinite(repeat):
             raise ValueError("--repeat must be a positive finite number")
         if not 1 <= port <= 65535:

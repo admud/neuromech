@@ -3,7 +3,7 @@
 `python -m hub.ugv` connects to the hub as the robot and turns its commands
 into the rover's UDP words on port 5005:
 - forward → `FWD`, back → `BACK`, left → `LEFT`, right → `RIGHT`, zero → `STOP`;
-- **new direction:** sent at once, then repeated every 0.5 s while it's held;
+- **new direction:** sent at once, then repeated every **0.2 s** while it's held;
 - **stopping:** `STOP` is sent three times.
 
 Drive the real rover (laptop and Pi on the same network):
@@ -12,10 +12,15 @@ control\.venv\Scripts\python -m hub --window 2
 control\.venv\Scripts\python -m hub.ugv --video none        # --host <Pi IP> if NeuroMech.local doesn't resolve
 control\.venv\Scripts\python -m hub.gui
 ```
+**The Pi side is [`robot/pi/motor_udp.py`](../../robot/pi/motor_udp.py).**
+- It **doesn't queue**: each packet sets the motors at once, and `STOP`
+  brakes at once.
+- It brakes by itself after **0.6 s** without a packet.
+- That's why the bridge repeats every 0.2 s: one late or lost packet
+  can't make the rover stutter.
+
 First run: wheels off the ground, and drive with the arrow keys in the
-display. Then hold ↑ for 5 s, release, and time how long the wheels keep
-turning. About 0 s is right; more than 1 s means the Pi queues commands,
-so restart the bridge with `--repeat 1.0`.
+display.
 
 ## Details (handoff notes)
 
@@ -29,7 +34,7 @@ control/.venv/Scripts/python.exe -m hub.ugv --host <Pi-IP>
 The bridge defaults to `NeuroMech.local:5005`, resolves that name once at
 startup, and prints the selected IPv4 address. `--hub` changes the hub robot
 socket, `--port` changes the UDP port, `--repeat` changes the motion repeat
-period (default 0.5 s), and `--video none` disables the test JPEG feed.
+period (default 0.2 s; it was 0.5 s before the Pi's 0.6 s watchdog was known), and `--video none` disables the test JPEG feed.
 `--dry-run` prints the UDP words instead of sending them.
 
 The bridge speaks `/ws/robot` as `ugv`, including `pong`, telemetry at about
@@ -56,7 +61,4 @@ and WebSocket servers. A live `hub --device sim` session on port 55547 sent
 recorder. No packet was sent to the real rover.
 The other 71 hub tests also passed during the initial handoff.
 
-Physical behavior remains to be checked by the user: if the Pi queues each
-one-second motion command rather than restarting its timer, repeated commands
-could delay STOP on the Pi. The bridge cannot clear that remote queue. Use
-the brief's forward-then-STOP timing check before driving on the floor.
+**Resolved (2026-09-26):** the Pi code (`robot/pi/motor_udp.py`) applies each packet immediately, so it doesn't queue, and brakes after 0.6 s without a packet. The default repeat is now 0.2 s. Tested against an emulation of that listener: 6 s of driving with packets every 0.20 s, no watchdog brakes, and `STOP` on release.

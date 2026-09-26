@@ -12,7 +12,8 @@ def main(argv=None):
     parser.add_argument("--hub", default="ws://127.0.0.1:8765/ws/robot")
     parser.add_argument("--host", default="NeuroMech.local")
     parser.add_argument("--port", type=int, default=5005)
-    parser.add_argument("--repeat", type=float, default=0.5)
+    parser.add_argument("--repeat", type=float, default=0.2,
+                        help="seconds between repeats of the current direction; the Pi brakes after 0.6 s of silence")
     parser.add_argument("--video", choices=("test", "none"), default="test")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
