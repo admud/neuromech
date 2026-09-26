@@ -149,6 +149,10 @@ def main():
         psd_lines.append(ln)
     ax_ps.set_xlim(1, 70)
     ax_ps.set_yscale("log")
+    # The window draws once before the first update fills the lines; an empty
+    # log axis has no positive limits and matplotlib >= 3.10 raises on it, which
+    # kills the first draw and so the animation never starts. update() rescales.
+    ax_ps.set_ylim(1e-2, 1e4)
     ax_ps.set_xlabel("Hz")
     ax_ps.set_ylabel("power")
     ax_ps.set_title("spectrum  (want 1/f falloff + alpha bump near 10 Hz)", fontsize=10)
