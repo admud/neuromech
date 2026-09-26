@@ -85,7 +85,8 @@ control\.venv\Scripts\python -m hub.ugv --video <camera>
 control\.venv\Scripts\python -m hub.gui
 ```
 The bridge looks up the rover at `NeuroMech.local`. Pass `--host <Pi IP>`
-if that name doesn't resolve.
+if that name doesn't resolve. Add `--swap-lr` if the rover strafes the wrong
+way (ours does).
 - **`<camera>`:** the rover camera's stream URL (e.g.
   `http://NeuroMech.local:8000/stream.mjpg`), or a device number such as
   `1` for a USB video receiver.

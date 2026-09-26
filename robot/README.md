@@ -30,6 +30,10 @@ on the Pi.
     - servos: pan 12, tilt 13 (hardware PWM).
   - **Mixing** matches the hub's `mecanumWheelSpeeds`: strafe left is
     FL−, FR+, RL+, RR−.
+  - **But the real rover strafes right on `LEFT`** (2026-09-27), probably
+    because its wheels are mirrored. The bridge's `--swap-lr` corrects this
+    for BCI driving. The keyboard tools' `a`/`d` are still reversed.
+    Swapping the `LEFT` and `RIGHT` patterns here would fix both.
 - **`test_dc_motors.py`**: a scripted motor check: forward, back, then
   strafe left and right. **Lift the chassis first.**
 - **`test_servos.py`**: sweeps each gimbal servo ±30° and back to centre.

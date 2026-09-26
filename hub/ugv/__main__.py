@@ -23,6 +23,8 @@ def main(argv=None):
                              "while the camera recovers from the brown-out")
     parser.add_argument("--no-freeze", action="store_true",
                         help="show the live feed while driving too")
+    parser.add_argument("--swap-lr", action="store_true",
+                        help="send RIGHT for left and LEFT for right (the rover strafes the wrong way)")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     try:

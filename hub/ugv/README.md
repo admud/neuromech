@@ -73,7 +73,9 @@ startup, and prints the selected IPv4 address. `--hub` changes the hub robot
 socket, `--port` changes the UDP port, `--repeat` changes the motion repeat
 period (default 0.2 s; it was 0.5 s before the Pi's 0.6 s watchdog was known), and `--video none` disables the test JPEG feed.
 `--dry-run` prints the UDP words instead of sending them. `--freeze-settle`
-and `--no-freeze` control the video freeze (above).
+and `--no-freeze` control the video freeze (above). `--swap-lr` sends
+`RIGHT` for left and `LEFT` for right. Our rover needs it (2026-09-27): its
+`LEFT` strafes right, probably because its mecanum wheels are mirrored.
 
 The bridge speaks `/ws/robot` as `ugv`, including `pong`, telemetry at about
 5 Hz, and a 640×480 test JPEG at about 10 Hz by default (or the camera's

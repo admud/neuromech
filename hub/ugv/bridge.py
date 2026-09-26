@@ -29,6 +29,11 @@ def direction_for(vx: float, vy: float) -> str:
     return "STOP"
 
 
+# --swap-lr: this rover strafes right on LEFT (its mecanum wheels are
+# mirrored), so the bridge can send the other word.
+SWAPPED = {"LEFT": "RIGHT", "RIGHT": "LEFT"}
+
+
 def resolve_target(host: str, port: int) -> tuple[str, int]:
     try:
         addresses = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_DGRAM)
@@ -45,7 +50,7 @@ def resolve_target(host: str, port: int) -> tuple[str, int]:
 class UgvBridge:
     def __init__(self, hub="ws://127.0.0.1:8765/ws/robot", host="NeuroMech.local",
                  port=5005, repeat=0.2, video="test", dry_run=False,
-                 freeze_settle=1.0, no_freeze=False):
+                 freeze_settle=1.0, no_freeze=False, swap_lr=False):
         if repeat <= 0 or not math.isfinite(repeat):
             raise ValueError("--repeat must be a positive finite number")
         if not 1 <= port <= 65535:
@@ -57,6 +62,7 @@ class UgvBridge:
         self.repeat_s = repeat
         self.video = video
         self.dry_run = dry_run
+        self.swap_lr = swap_lr
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.direction = "STOP"
         self.last_udp_command = None
@@ -128,6 +134,8 @@ class UgvBridge:
                 or not math.isfinite(vx) or not math.isfinite(vy)):
             return
         new_direction = direction_for(float(vx), float(vy))
+        if self.swap_lr:
+            new_direction = SWAPPED.get(new_direction, new_direction)
         # If the old socket delivered buffered movement after a freeze, it
         # must not unlock the rover. The next session needs an explicit zero
         # command before any movement can resume.
