@@ -1,6 +1,14 @@
 # Phase 6: jaw-clench latch ("select with your eyes, confirm with your jaw")
 
-**Status:** plan, waiting for the user's answers and go · **Agents:** opus3 (engine), opus (GUI + dashboard) · **Tests:** @main
+**Status:** approved 2026-09-26, in progress · **Agents:** opus3 (engine), opus (GUI + dashboard) · **Tests:** @main
+
+**User decisions (2026-09-26):**
+1. Latch mode: gaze only **previews** until a clench.
+2. A clench while latched **always stops**.
+3. **Maximum latch time 3 s by default, adjustable** (`latch_max_s`, dashboard + CLI).
+4. Default mode: **"hold"** for now (backward compatible). `--control latch` or
+   the dashboard switches; the user can make latch the default later.
+5. The user will record clench data with the recorder, so land it first.
 
 ## The idea
 Today a direction only drives while you keep looking at its circle, and it
@@ -55,7 +63,7 @@ Cyton specifics:
 - **Clench while latched:** unlatch and stop.
 - **Also unlatch on:** STOP (Space/Esc, phone, dashboard), disarm, any
   auto-disarm (phone/robot/EEG lost), and a **maximum latch time**
-  (default 10 s, configurable) as a safety net.
+  (default **3 s**, configurable) as a safety net.
 - **Keyboard override** still wins over everything while held.
 
 ## Protocol additions (optional fields only; nothing renamed)
