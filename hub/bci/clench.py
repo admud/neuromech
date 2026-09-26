@@ -3,7 +3,11 @@
 A clench is a burst of broadband muscle EMG, far above 30 Hz, on every scalp
 channel (most on the frontal and temporal ones). Chain, per channel:
 
-  50 + 100 Hz notch   the Cyton carries mains, which would dominate >30 Hz
+  50 + 100 Hz notch   the Cyton carries mains, which would dominate >30 Hz.
+                      Wide (Q=5, 45-55 / 90-110 Hz): a narrow notch lets a
+                      changing mains amplitude leak through its sidebands,
+                      and the calm baseline above 30 Hz is so quiet that the
+                      leak alone crossed the threshold
   30 Hz high-pass     4th-order Butterworth, causal (streaming)
   TKEO                Teager-Kaiser energy x[n]^2 - x[n-1]x[n+1]: tracks
                       amplitude AND frequency, so EMG stands out from slow
@@ -37,7 +41,7 @@ def _design(fs, mains=50.0):
     parts = []
     for f in (mains, 2 * mains):
         if f < fs / 2 - 1:
-            b, a = iirnotch(f, Q=30.0, fs=fs)
+            b, a = iirnotch(f, Q=5.0, fs=fs)
             parts.append(tf2sos(b, a))
     parts.append(butter(4, 30.0, btype="highpass", fs=fs, output="sos"))
     return np.vstack(parts)
@@ -83,8 +87,9 @@ class ClenchDetector:
 
     # ---- streaming -------------------------------------------------------
     def update(self, x):
-        """Process a (n_channels, n) chunk in µV. Returns the sample offsets
-        (0..n-1 within this chunk) at which a clench STARTED, one per fire."""
+        """Process a (n_channels, n) chunk in µV. Returns, one per fire, the
+        offset of the clench's START relative to this chunk's first sample
+        (negative when the burst began in an earlier chunk)."""
         x = np.asarray(x, dtype=np.float64)
         if x.ndim != 2 or x.shape[0] != self.n or x.shape[1] == 0:
             self.z_peak = self.z
@@ -124,7 +129,7 @@ class ClenchDetector:
                     self._armed = False
                     self._last_fire = self.t
                     self.count += 1
-                    fires.append(max(0, i - self._run + 1))
+                    fires.append(i - self._run + 1)
             else:
                 self._run = 0
             if zc < 0.5 * self.threshold:
