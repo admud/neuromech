@@ -57,6 +57,15 @@ This is a port of the Muse detector (`blink_clench_v2.py`) to the Cyton at
 6. It fires **once per clench** (it must drop back below threshold first),
    with a 50 ms minimum duration and a 0.4 s refractory period. Leave
    about 1 s between clenches.
+7. **It heals itself** (fixed 2026-09-26, after it jammed live):
+   - **Flat channels are left out.** A railed or unplugged electrode is
+     skipped, logged as "clench channels flat". It needs 2 live channels.
+   - **A flat start is discarded.** Before, a flat first second left the
+     baseline with no spread. Every later sample then scored ~10¹¹, so it
+     fired once and never again.
+   - **It re-learns when stuck.** A score above threshold for 3 s isn't a
+     clench, so it re-learns its baseline, logged as "clench baseline
+     re-learned".
 
 **Tuning the threshold on your own clenches** (with the hub stopped):
 ```

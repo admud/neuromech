@@ -25,6 +25,15 @@ after z has stayed below half the threshold for 100 ms, and never within
 `refractory_s` (0.4 s) of the last fire. A 1 s clench whose envelope wobbles
 around the threshold must not latch and then immediately unlatch.
 
+Self-healing (seen live on the Cyton, 2026-09-26): the baseline had been
+learned from a flat start, so its spread was ~0 and every later sample
+scored z ~1e11. The detector fired once and then never re-armed, and it
+could never re-learn, because it learns only while calm. So:
+  - a channel whose baseline spread is below MIN_MAD is flat (railed or
+    unplugged) and is left out (z 0); the detector needs 2 live channels;
+  - z above the threshold for `stuck_s` (3 s) is not a clench: the
+    baseline is thrown away and re-learned from the next second.
+
 Feed it the new samples every engine tick with `update(chunk)`.
 """
 from collections import deque
@@ -34,6 +43,7 @@ from scipy.signal import butter, iirnotch, sosfilt, sosfilt_zi, tf2sos
 
 DEFAULT_CHANNELS = ["Fp1", "Fp2", "P7", "P8"]
 DEFAULT_THRESHOLD = 8.0
+MIN_MAD = 1e-3     # envelope spread (µV², TKEO) below this = a flat channel; live EEG is ~5-300
 
 
 def _design(fs, mains=50.0):
@@ -50,7 +60,7 @@ def _design(fs, mains=50.0):
 class ClenchDetector:
     def __init__(self, fs, n_channels, threshold=DEFAULT_THRESHOLD, min_s=0.05,
                  refractory_s=0.4, baseline_s=8.0, env_s=0.05, mains=50.0,
-                 warmup_s=1.0):
+                 warmup_s=1.0, stuck_s=3.0):
         self.fs = int(fs)
         self.n = int(n_channels)
         self.threshold = float(threshold)
@@ -58,6 +68,7 @@ class ClenchDetector:
         self.refractory_n = int(round(refractory_s * self.fs))
         self.warmup_n = int(warmup_s * self.fs)
         self.rearm_n = max(1, int(round(0.1 * self.fs)))
+        self.stuck_n = int(round(stuck_s * self.fs))
         self._sos = _design(self.fs, mains)
         self._zi = None
         self._prev = np.zeros((self.n, 2))           # last two filtered samples, for TKEO
@@ -68,7 +79,9 @@ class ClenchDetector:
         self._base_step = 0
         self._med = np.zeros(self.n)
         self._mad = np.ones(self.n)
+        self._live = np.ones(self.n, bool)   # channels that aren't flat
         self._stats_ok = False
+        self.relearns = 0          # times the baseline was thrown away (stuck above threshold)
 
         self.t = 0                 # samples processed
         self._run = 0              # consecutive samples above threshold
@@ -83,7 +96,13 @@ class ClenchDetector:
     def reset(self):
         self.__init__(self.fs, self.n, self.threshold, self.min_n / self.fs,
                       self.refractory_n / self.fs, self._base.maxlen * 2 / self.fs,
-                      self._env_n / self.fs, warmup_s=self.warmup_n / self.fs)
+                      self._env_n / self.fs, warmup_s=self.warmup_n / self.fs,
+                      stuck_s=self.stuck_n / self.fs)
+
+    @property
+    def flat(self):
+        """Indices of the channels left out as flat, once the baseline is known."""
+        return [i for i in range(self.n) if not self._live[i]]
 
     # ---- streaming -------------------------------------------------------
     def update(self, x):
@@ -116,7 +135,7 @@ class ClenchDetector:
         for i in range(env.shape[1]):
             e = env[:, i]
             if self._stats_ok:
-                zch = (e - self._med) / self._mad
+                zch = np.where(self._live, (e - self._med) / self._mad, 0.0)
                 zc = float(np.sort(zch)[-2]) if self.n >= 2 else float(zch[0])
             else:
                 zc = 0.0
@@ -130,6 +149,9 @@ class ClenchDetector:
                     self._last_fire = self.t
                     self.count += 1
                     fires.append(i - self._run + 1)
+                if self._run >= self.stuck_n:
+                    self._relearn()
+                    zc = 0.0
             else:
                 self._run = 0
             if zc < 0.5 * self.threshold:
@@ -155,8 +177,23 @@ class ClenchDetector:
         b = np.asarray(self._base)
         self._med = np.median(b, axis=0)
         mad = np.median(np.abs(b - self._med), axis=0) * 1.4826
-        self._mad = np.maximum(mad, 1e-9 + 1e-6 * np.abs(self._med))
-        self._stats_ok = True
+        self._live = mad > MIN_MAD
+        self._mad = np.maximum(mad, np.maximum(MIN_MAD, 1e-6 * np.abs(self._med)))
+        self._stats_ok = int(self._live.sum()) >= min(2, self.n)
+        if not self._stats_ok:
+            # Fewer than 2 live channels: no z (it stays 0). Drop the flat
+            # stretch, so the baseline is learned from a fresh second of live
+            # signal once channels come alive, not a mix that scores it high.
+            self._base.clear()
+            self._base_step = 0
+
+    def _relearn(self):
+        """Stuck above threshold: drop the baseline and learn it again."""
+        self._base.clear()
+        self._base_step = 0
+        self._stats_ok = False
+        self._run = 0
+        self.relearns += 1
 
 
 def pick_clench_channels(names, rows, wanted=None):

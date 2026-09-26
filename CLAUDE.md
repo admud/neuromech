@@ -198,5 +198,9 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
 - The rover's camera browns out while the motors run (shared battery). The bridge
   (`hub/ugv/camera.py`) holds the last pre-drive frame until 1 s after the stop
   (`--freeze-settle`). The display doesn't mark it (user's choice).
+- The Cyton's samples reach the hub in bursts about every 0.5 s (seen 2026-09-26), not
+  continuously. The clench detector once learned its baseline from a flat start and then
+  jammed (z ~1e11, one fire, then nothing). It now skips flat channels and re-learns.
+  If clenches do nothing, check the dashboard clench z: at rest it should be ~0-5.
 - The decoder margin defaults to 0.08: at 0.06 the robot crept ~10% of the time
   while looking away in sim. Live look-away-to-stop is ~2.4 s (3 s window).

@@ -104,6 +104,8 @@ class BciEngine:
         self._clench_fired_at = None
         self._clench_ignored_at = None   # last clench that found no target
         self._clench_event = None   # {"t", "result", "direction"}
+        self._clench_relearns = 0
+        self._clench_flat = []
 
         self._decoder = None
         self._gen = 0               # bumps on every decoder-affecting change
@@ -491,6 +493,13 @@ class BciEngine:
         self._clench_seen = data[:, -1].copy()
         t_read = time.monotonic()
         fires = det.update(new[self._clench_rows])
+        if det.relearns != self._clench_relearns:
+            self._clench_relearns = det.relearns
+            _log("clench baseline re-learned (z above threshold for 3 s is not a clench)")
+        flat = [self._clench_names[i] for i in det.flat]
+        if flat != self._clench_flat:
+            self._clench_flat = flat
+            _log("clench channels flat (railed or unplugged), left out: %s" % (", ".join(flat) or "none"))
         with self._lock:
             self._clench_z = [(t, z) for t, z in self._clench_z if t_read - t <= 1.0]
             self._clench_z.append((t_read, det.z_peak))
