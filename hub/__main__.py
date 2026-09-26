@@ -1,7 +1,11 @@
 """Run the PC hub: python -m hub [options]."""
 
 import argparse
+import subprocess
 import sys
+import threading
+import time
+import urllib.request
 
 import uvicorn
 
@@ -23,6 +27,8 @@ def parse_args(argv=None):
     parser.add_argument("--http-port", type=int, default=8765)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--stub", action="store_true")
+    parser.add_argument("--virtual-robot", action="store_true",
+                        help="also run the CPU-rendered virtual robot (hub.sim.virtual), no browser needed")
     args = parser.parse_args(argv)
     try:
         args.freqs = dict(zip(("up", "down", "left", "right"),
@@ -30,6 +36,49 @@ def parse_args(argv=None):
     except (ValueError, TypeError):
         parser.error("--freqs must contain four comma-separated numbers")
     return args
+
+
+def start_virtual_robot(port):
+    """Start hub.sim.virtual once the server answers; returns a holder for the process.
+
+    A child process, not a thread: its rendering then never competes with
+    the hub's event loop for the GIL."""
+    holder = {"proc": None, "stop": False}
+
+    def launch():
+        url = f"http://127.0.0.1:{port}/api/health"
+        for _ in range(300):                 # wait up to ~30 s for the server
+            if holder["stop"]:
+                return
+            try:
+                with urllib.request.urlopen(url, timeout=1):
+                    break
+            except OSError:
+                time.sleep(0.1)
+        else:
+            print("Virtual robot not started: the hub never answered.", file=sys.stderr, flush=True)
+            return
+        if not holder["stop"]:
+            # stdin is a pipe only the hub holds: if the hub dies without
+            # cleaning up, the child sees EOF and exits instead of lingering.
+            holder["proc"] = subprocess.Popen([sys.executable, "-m", "hub.sim.virtual",
+                                               "--hub", f"ws://127.0.0.1:{port}/ws/robot",
+                                               "--exit-with-parent"], stdin=subprocess.PIPE)
+            print("Virtual robot started (hub.sim.virtual).", flush=True)
+
+    threading.Thread(target=launch, name="virtual-robot-launcher", daemon=True).start()
+    return holder
+
+
+def stop_virtual_robot(holder):
+    holder["stop"] = True
+    proc = holder["proc"]
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
 
 def main(argv=None):
@@ -59,10 +108,13 @@ def main(argv=None):
         print(f"Phone:     http://{ip}:{args.http_port}/phone/", flush=True)
         print(f"Dashboard: http://{ip}:{args.http_port}/dashboard/", flush=True)
     print("If the phone can't connect, allow Python through Windows Firewall on Public networks.", flush=True)
+    virtual = start_virtual_robot(args.http_port) if args.virtual_robot else None
     try:
         uvicorn.run(create_app(engine, args.http_port), host=args.host, port=args.http_port,
                     ws="wsproto", log_level="info")
     finally:
+        if virtual is not None:
+            stop_virtual_robot(virtual)
         engine.stop()
     return 0
 
