@@ -168,8 +168,9 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
 - World frame: metres, x forward, y left, z up, heading = yaw CCW from +x.
 - `control/` is upstream-derived. Change it only when the task needs it,
   and keep `setup.py` reading `EEG-ExPy_README.rst` (not `README.rst`).
-- **Git:** work on a feature branch (currently `feat/teleop`), never commit
-  to `main` directly. In multi-agent phases several agents share one working
+- **Git:** work off `main` (the user's call, 2026-09-27; `feat/teleop` was
+  merged via PRs #1 and #2 and fast-forwarded to `main`). Push only when the user asks.
+  In multi-agent phases several agents share one working
   tree, so commit only your own paths (`git commit -- <paths>`) and never
   stash, reset, rebase, switch branches or push.
 
