@@ -131,14 +131,16 @@ What the display shows, from the engine's optional state fields
 also accepts the first proposal's `latched_at` / `clench.ignored_at`.
 
 **GUI (`hub.gui`)**
+- All latch and clench text sits in the **top-left margin** under
+  ARMED/DISARMED, off the video (the user asked for it not to cover the feed).
 - In latch mode with nothing latched, the gaze winner gets an **amber** ring
-  and "PREVIEW - clench to go": selected, but not moving. In hold mode the
-  ring stays green, as before.
-- Latched: a big **"LATCHED ▲/▼/◄/►"** box and a timer bar that drains over
+  and a small "PREVIEW": selected, but not moving. In hold mode the ring
+  stays green, as before.
+- Latched: a small **"LATCHED ▲/▼/◄/►"** and a thin timer bar under it that drains over
   `latch.max_s`. The bar is interpolated between the 10 Hz states from
   `left_s` and state age. The ring moves to the latched target, and the
   command arrow shows the direction being driven.
-- Any clench flashes **CLENCH** for 0.4 s.
+- Any clench flashes a small **CLENCH** (or **NO TARGET** / **NOT ARMED**) in the same margin for 0.4 s.
 - `result == "no_target"` shows "no target - look at a circle, then clench"
   for 1.5 s, and `not_armed` shows "clench ignored - not armed". Events
   are detected by a change of `clench.last.t`, so an old event seen on
@@ -189,3 +191,11 @@ panel's controls. `?demo=1` emulates latch mode in the engine's field shape.
 one (0.6 s burst + 0.4 s refractory: 0.5 and 0.7 s gaps gave 1 of 2; 0.9 s
 and more gave 2 of 2). So "clench to stop" right after latching needs a
 ~1 s gap in sim. Real clenches may differ.
+
+## Rover video freeze (@main, 2026-09-26)
+
+- The rover's camera browns out while the motors run.
+- The bridge (`hub.ugv`) then re-sends the last frame from before the drive
+  at the normal rate, and sets `video_frozen` in its telemetry.
+- **The display doesn't mark it** (the user's choice). A FROZEN badge was
+  tried and removed. `video_frozen` is there if one is wanted later.

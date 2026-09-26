@@ -98,6 +98,19 @@ def test_dry_run_prints_without_udp(capsys):
         listener.close()
 
 
+def test_swap_lr_swaps_only_the_strafe_words(capsys):
+    bridge = UgvBridge(host="127.0.0.1", port=5005, video="none", dry_run=True, swap_lr=True)
+    try:
+        words = []
+        for vx, vy in ((0, 0.3), (0, -0.3), (0.3, 0), (-0.3, 0), (0, 0)):
+            bridge.on_command({"vx": vx, "vy": vy, "ttl_ms": 500})
+            words.append(bridge.direction)
+        assert words == ["RIGHT", "LEFT", "FWD", "BACK", "STOP"]
+        assert " RIGHT" in capsys.readouterr().out
+    finally:
+        bridge.socket.close()
+
+
 def test_udp_mapping_change_repeat_and_stop_burst():
     asyncio.run(_exercise_udp_mapping())
 

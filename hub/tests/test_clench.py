@@ -113,6 +113,44 @@ def test_chunk_size_does_not_matter():
     assert fires_of(x, chunk=250) == ref
 
 
+def test_flat_start_does_not_jam_the_detector():
+    # Seen live on the Cyton: a flat first second left a baseline spread of ~0,
+    # every later sample scored z ~1e11, and nothing fired after the first.
+    live = with_bursts(eeg(30), [6.0, 12.0, 18.0, 24.0])
+    x = np.concatenate([np.repeat(live[:, :1], 2 * FS, axis=1), live], axis=1)
+    det = ClenchDetector(FS, 4)
+    fires = []
+    for s in range(0, x.shape[1], 125):           # 0.5 s bursts, like the live dongle
+        fires += [s + f for f in det.update(x[:, s:s + 125])]
+    assert [round(f / FS - 2) for f in fires] == [6, 12, 18, 24]
+
+
+def test_flat_channels_are_left_out():
+    # Fp1 and Fp2 railed (a constant) the whole time: P7/P8 still detect.
+    x = with_bursts(eeg(30), [6.0, 12.0, 18.0, 24.0])
+    x[:2] = 187500.0
+    det = ClenchDetector(FS, 4)
+    fires = []
+    for s in range(0, x.shape[1], 12):
+        fires += det.update(x[:, s:s + 12])
+    assert len(fires) == 4
+    assert det.flat == [0, 1]
+    assert det.z_peak < 1e6
+
+
+def test_stuck_above_threshold_relearns():
+    # A baseline learned from a much quieter signal: z sits far above the
+    # threshold. After 3 s the detector re-learns and clenches fire again.
+    quiet = eeg(4) * 0.02
+    x = np.concatenate([quiet, with_bursts(eeg(20), [10.0, 15.0])], axis=1)
+    det = ClenchDetector(FS, 4)
+    fires = []
+    for s in range(0, x.shape[1], 12):
+        fires += [s + f for f in det.update(x[:, s:s + 12])]
+    assert det.relearns == 1
+    assert [round(f / FS - 4) for f in fires[1:]] == [10, 15]   # the first is the jump itself
+
+
 def test_threshold_is_live_and_z_reported():
     det = ClenchDetector(FS, 4, threshold=8.0)
     x = with_bursts(eeg(10), [6.0])

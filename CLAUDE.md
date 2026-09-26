@@ -75,7 +75,8 @@ web/                    static pages served by the hub, no build step
     worlds/default.json the virtual arena (walls, spawn, robot camera)
     vendor/three/       vendored three.js (no CDN)
 e2e/                    browser/sim end-to-end scenario scripts (node + headless Chrome over CDP); see e2e/README.md
-robot/                  rover side. ugv_controller.py = the team's manual UDP keyboard tool (test file; the Pi code lands later)
+robot/                  rover side. ugv_controller.py = manual UDP keyboard tool (runs on the laptop)
+  pi/                   code on the Raspberry Pi: motor_udp.py (UDP :5005 listener, 0.6 s watchdog), motor + servo tests
 ```
 
 ## Environment
@@ -111,6 +112,7 @@ control\.venv\Scripts\python -m hub.bci.record_clench --out clench_s1.npz   # 2-
 control\.venv\Scripts\python -m hub.bci.record_clench analyze clench_s1.npz # clench vs rest z, suggested --clench-threshold
 control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
 control\.venv\Scripts\python -m hub.ugv --host NeuroMech.local   # drive the real rover (use the Pi's IP if .local fails); replaces robot_sim
+control\.venv\Scripts\python -m hub.ugv --video http://<pi>:<port>/<stream>   # ...with the rover camera (URL or device number); frozen while driving
 control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check
 control\.venv\Scripts\python -m hub.gui.analyze f.csv   # fps, late frames, measured flicker frequencies
 control\.venv\Scripts\python -m hub.sim.robot_sim --video test   # headless fake robot
@@ -193,5 +195,12 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
 - The laptop's Chrome renders on the Intel GPU (4K panel at 1.5x). The phone page on the
   laptop drops to ~60 fps with uneven frames while the dashboard's 3D sim runs, which garbles
   the flicker. Set Chrome to the RTX 3080 (Windows Graphics settings → High performance).
+- The rover's camera browns out while the motors run (shared battery). The bridge
+  (`hub/ugv/camera.py`) holds the last pre-drive frame until 1 s after the stop
+  (`--freeze-settle`). The display doesn't mark it (user's choice).
+- The Cyton's samples reach the hub in bursts about every 0.5 s (seen 2026-09-26), not
+  continuously. The clench detector once learned its baseline from a flat start and then
+  jammed (z ~1e11, one fire, then nothing). It now skips flat channels and re-learns.
+  If clenches do nothing, check the dashboard clench z: at rest it should be ~0-5.
 - The decoder margin defaults to 0.08: at 0.06 the robot crept ~10% of the time
   while looking away in sim. Live look-away-to-stop is ~2.4 s (3 s window).
