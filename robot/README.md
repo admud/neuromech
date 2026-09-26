@@ -57,8 +57,17 @@ commands into these same UDP words.
 - It sends `STOP` on its own if the hub goes quiet.
 ```
 control\.venv\Scripts\python -m hub --window 2
-control\.venv\Scripts\python -m hub.ugv --video none      # --host <Pi IP> if NeuroMech.local fails
+control\.venv\Scripts\python -m hub.ugv --video <camera>  # --host <Pi IP> if NeuroMech.local fails
 control\.venv\Scripts\python -m hub.gui
 ```
+`<camera>` is the rover camera's stream URL, or a device number for a USB
+video receiver (`none` for no video).
+- **The camera browns out** while the motors run: they share the AA packs.
+- **The bridge covers it:** while driving it shows the last frame from
+  before the rover moved, then goes live again 1 s after the stop.
+- **The real fix is power:** give the Pi and the camera their own supply
+  (a USB power bank), or add a large capacitor across the camera's supply.
+  Then `--no-freeze` gives live video while driving.
+
 Don't run `ugv_controller.py` and the bridge at the same time: both would
 be commanding the rover.

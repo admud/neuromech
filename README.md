@@ -81,11 +81,19 @@ control\.venv\Scripts\python -m hub.gui
 **Real rover** (laptop and Pi on the same network, e.g. the iPhone hotspot):
 ```
 control\.venv\Scripts\python -m hub --window 2
-control\.venv\Scripts\python -m hub.ugv --video none
+control\.venv\Scripts\python -m hub.ugv --video <camera>
 control\.venv\Scripts\python -m hub.gui
 ```
 The bridge looks up the rover at `NeuroMech.local`. Pass `--host <Pi IP>`
 if that name doesn't resolve.
+- **`<camera>`:** the rover camera's stream URL (e.g.
+  `http://NeuroMech.local:8000/stream.mjpg`), or a device number such as
+  `1` for a USB video receiver.
+  - Use `--video none` for no video, or `test` for a test pattern.
+- **Brown-outs:** the camera browns out while the motors run. The display
+  therefore holds the last frame from before the rover moved, marked
+  **FROZEN**, and goes live again 1 s after it stops. See
+  [`hub/ugv/`](hub/ugv/README.md#video-and-the-motion-freeze).
 
 **Options:**
 - **Latch mode:** add `--control latch` (and `--clench-threshold N`) to

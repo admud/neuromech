@@ -112,6 +112,7 @@ control\.venv\Scripts\python -m hub.bci.record_clench --out clench_s1.npz   # 2-
 control\.venv\Scripts\python -m hub.bci.record_clench analyze clench_s1.npz # clench vs rest z, suggested --clench-threshold
 control\.venv\Scripts\python -m hub.gui                # operator display, full screen on the 120 Hz laptop panel
 control\.venv\Scripts\python -m hub.ugv --host NeuroMech.local   # drive the real rover (use the Pi's IP if .local fails); replaces robot_sim
+control\.venv\Scripts\python -m hub.ugv --video http://<pi>:<port>/<stream>   # ...with the rover camera (URL or device number); frozen while driving
 control\.venv\Scripts\python -m hub.gui --windowed --duration 30 --log-frames f.csv   # timing check
 control\.venv\Scripts\python -m hub.gui.analyze f.csv   # fps, late frames, measured flicker frequencies
 control\.venv\Scripts\python -m hub.sim.robot_sim --video test   # headless fake robot
@@ -194,5 +195,8 @@ cd control && .venv\Scripts\python -m pytest tests     # upstream tests
 - The laptop's Chrome renders on the Intel GPU (4K panel at 1.5x). The phone page on the
   laptop drops to ~60 fps with uneven frames while the dashboard's 3D sim runs, which garbles
   the flicker. Set Chrome to the RTX 3080 (Windows Graphics settings → High performance).
+- The rover's camera browns out while the motors run (shared battery). The bridge
+  (`hub/ugv/camera.py`) holds the last pre-drive frame until 1 s after the stop
+  (`--freeze-settle`), and the display shows FROZEN.
 - The decoder margin defaults to 0.08: at 0.06 the robot crept ~10% of the time
   while looking away in sim. Live look-away-to-stop is ~2.4 s (3 s window).

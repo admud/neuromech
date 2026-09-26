@@ -191,3 +191,14 @@ panel's controls. `?demo=1` emulates latch mode in the engine's field shape.
 one (0.6 s burst + 0.4 s refractory: 0.5 and 0.7 s gaps gave 1 of 2; 0.9 s
 and more gave 2 of 2). So "clench to stop" right after latching needs a
 ~1 s gap in sim. Real clenches may differ.
+
+## Rover video freeze (@main, 2026-09-26)
+
+- The rover's camera browns out while the motors run.
+- The bridge (`hub.ugv`) then re-sends the last frame from before the drive,
+  and sets `video_frozen` in its telemetry.
+- The display shows a small cyan **FROZEN** in the bottom-left margin, above
+  the status line, while that flag is set.
+- The status line's video fps drops to ~2 then: those are the re-sends.
+- The label is prebuilt and warmed at startup like the others, so showing it
+  costs no late frame.

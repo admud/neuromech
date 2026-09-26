@@ -13,6 +13,8 @@ from websockets.exceptions import ConnectionClosed
 
 from hub.sim.robot_sim import RobotSim
 
+from .camera import CameraFeed, FreezeGate, parse_source
+
 
 def direction_for(vx: float, vy: float) -> str:
     """The hub only sends one cardinal axis at a time; forward takes priority."""
@@ -42,11 +44,14 @@ def resolve_target(host: str, port: int) -> tuple[str, int]:
 
 class UgvBridge:
     def __init__(self, hub="ws://127.0.0.1:8765/ws/robot", host="NeuroMech.local",
-                 port=5005, repeat=0.2, video="test", dry_run=False):
+                 port=5005, repeat=0.2, video="test", dry_run=False,
+                 freeze_settle=1.0, no_freeze=False):
         if repeat <= 0 or not math.isfinite(repeat):
             raise ValueError("--repeat must be a positive finite number")
         if not 1 <= port <= 65535:
             raise ValueError("--port must be between 1 and 65535")
+        if freeze_settle < 0 or not math.isfinite(freeze_settle):
+            raise ValueError("--freeze-settle must be zero or more seconds")
         self.hub = hub
         self.target = resolve_target(host, port)
         self.repeat_s = repeat
@@ -65,7 +70,14 @@ class UgvBridge:
         self.vx = self.vy = 0.0
         self.seq = 0
         self._last_emergency_at = None
+        # Video: the test pattern, the rover's camera (a device number or a
+        # stream URL), or none. Either way it passes through the freeze gate.
         self.camera = RobotSim(video="test", fps=10) if video == "test" else None
+        self.feed = CameraFeed(parse_source(video)) if video not in ("test", "none") else None
+        self.has_video = video != "none"
+        self.gate = FreezeGate(settle_s=freeze_settle, enabled=not no_freeze)
+        self._feed_seq = 0
+        self._next_test_frame = 0.0
 
     def _send_udp(self, command: str) -> None:
         if self.dry_run:
@@ -181,8 +193,25 @@ class UgvBridge:
                 async with send_lock:
                     await ws.send(json.dumps({"type": "pong", "t_hub": message.get("t_hub")}))
 
+    def _video_frame(self, now):
+        """The JPEG to send now, or None: the newest frame, unless the rover is
+        driving or has only just stopped, when the gate holds the last good one."""
+        frame = arrived = None
+        if self.feed is not None:
+            seq, jpeg, stamp = self.feed.latest()
+            if seq != self._feed_seq and jpeg is not None:
+                self._feed_seq, frame, arrived = seq, jpeg, stamp
+        elif self.camera is not None and now >= self._next_test_frame:
+            self.camera.vx = 0.0 if self.direction == "STOP" else self.vx
+            self.camera.vy = 0.0 if self.direction == "STOP" else self.vy
+            self.camera.seq = self.seq
+            self.camera.watchdog_stopped = self.watchdog_stopped
+            frame, arrived = self.camera.get_frame(), now
+            self._next_test_frame = now + 0.1
+        return self.gate.step(now, self.direction != "STOP", frame, arrived)
+
     async def _report(self, ws, send_lock):
-        next_telemetry = next_video = time.monotonic()
+        next_telemetry = time.monotonic()
         while True:
             now = time.monotonic()
             if now >= next_telemetry:
@@ -190,18 +219,16 @@ class UgvBridge:
                            "watchdog_stopped": self.watchdog_stopped,
                            "recovery_requires_zero": self.recovery_requires_zero,
                            "last_udp_command": self.last_udp_command,
-                           "battery_v": None}
+                           "battery_v": None,
+                           "video_frozen": self.has_video and self.gate.frozen(now)}
                 async with send_lock:
                     await ws.send(json.dumps(message))
                 next_telemetry = now + 0.2
-            if self.camera is not None and now >= next_video:
-                self.camera.vx = 0.0 if self.direction == "STOP" else self.vx
-                self.camera.vy = 0.0 if self.direction == "STOP" else self.vy
-                self.camera.seq = self.seq
-                self.camera.watchdog_stopped = self.watchdog_stopped
-                async with send_lock:
-                    await ws.send(self.camera.get_frame())
-                next_video = now + 0.1
+            if self.has_video:
+                frame = self._video_frame(now)
+                if frame is not None:
+                    async with send_lock:
+                        await ws.send(frame)
             await asyncio.sleep(0.01)
 
     async def session(self, ws, udp_task):
@@ -212,7 +239,7 @@ class UgvBridge:
         send_lock = asyncio.Lock()
         await ws.send(json.dumps({"type": "hello", "client": "robot", "name": "ugv",
                                   "video": {"w": 640, "h": 480,
-                                            "fps": 10 if self.camera is not None else 0}}))
+                                            "fps": 10 if self.has_video else 0}}))
         receiver = asyncio.create_task(self._receive(ws, send_lock))
         reporter = asyncio.create_task(self._report(ws, send_lock))
         watchdog = asyncio.create_task(self.watchdog_fired.wait())
@@ -236,6 +263,8 @@ class UgvBridge:
     async def run(self):
         print(f"UGV UDP target: {self.target[0]}:{self.target[1]}", flush=True)
         self.emergency_stop()
+        if self.feed is not None:
+            self.feed.start()
         udp_task = asyncio.create_task(self._udp_loop())
         delay = 0.5
         try:
@@ -267,3 +296,5 @@ class UgvBridge:
             with suppress(asyncio.CancelledError, Exception):
                 await udp_task
             self.socket.close()
+            if self.feed is not None:
+                self.feed.stop()
