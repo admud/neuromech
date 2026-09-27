@@ -142,10 +142,10 @@ median interval.
 
 For something outside the repo that only shows the hub's data, like the demo
 presentation site (2026-09-27): live video, the four decoder scores, and what's driving.
-- **Hubs:** the real hub is `jackie:8765` over Tailscale; the laptop's hotspot IP also works. For development, run
+- **Hubs:** the real hub is `<laptop>:8765`, where `<laptop>` is the laptop's Tailscale name or its hotspot IP. For development, run
   a sim hub next to it:
   `python -m hub --device sim --window 2 --control latch --virtual-robot --http-port 8766`,
-  then use `jackie:8766`. It doesn't touch the headset or the real hub.
+  then use `<laptop>:8766`. It doesn't touch the headset or the real hub.
 - **Sockets:** `/ws/dashboard` for `config` + `state` (10 Hz), and `/ws/video` for JPEG frames.
   Open one of each for the whole site.
   - Plain `ws://`, so the viewer must be served over `http` (an `https` page can't open them).
