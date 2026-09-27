@@ -26,8 +26,8 @@ One hub process on the PC serves everything on one port.
 | `GET /twin/` | static | laptop browser, or iframe in the dashboard | `web/twin/` (3D virtual sim, the virtual robot) |
 | `GET /api/health` | HTTP | anyone | `{"ok": true}` |
 | `WS /ws/phone` | JSON text | phone page | see [Phone](#phone--wsphone) |
-| `WS /ws/dashboard` | JSON text | dashboard page; twin page (read-only, never sends) | see [Dashboard](#dashboard--wsdashboard) |
-| `WS /ws/video` | binary | phone page, dashboard page | one JPEG per message, hub → viewer only |
+| `WS /ws/dashboard` | JSON text | dashboard page; desktop display (`hub.gui`); twin page and [read-only viewers](#read-only-viewers-external-sites) (never send) | see [Dashboard](#dashboard--wsdashboard) |
+| `WS /ws/video` | binary | phone page, dashboard page, desktop display, read-only viewers | one JPEG per message, hub → viewer only |
 | `WS /ws/robot` | JSON text + binary | the robot: twin page in `mode=robot`, `hub.sim.robot_sim`, or the RPi | see [Robot](#robot--wsrobot) |
 
 ## Conventions
@@ -137,6 +137,39 @@ median interval.
 | `sim_gaze` | `{"target": "up"\|...\|null}` | only with `--device sim`: which target the simulated user looks at |
 | `sim_clench` | `{}` or `{"duration_s": 0.6}` | only with `--device sim`: inject a jaw-clench EMG burst (Phase 6) |
 | `ping` | `{"t_client": ...}` | hub replies `pong` |
+
+## Read-only viewers (external sites)
+
+For something outside the repo that only shows the hub's data, like the demo
+presentation site (2026-09-27): live video, the four decoder scores, and what's driving.
+- **Hubs:** the real hub is `jackie:8765` over Tailscale; the laptop's hotspot IP also works. For development, run
+  a sim hub next to it:
+  `python -m hub --device sim --window 2 --control latch --virtual-robot --http-port 8766`,
+  then use `jackie:8766`. It doesn't touch the headset or the real hub.
+- **Sockets:** `/ws/dashboard` for `config` + `state` (10 Hz), and `/ws/video` for JPEG frames.
+  Open one of each for the whole site.
+  - Plain `ws://`, so the viewer must be served over `http` (an `https` page can't open them).
+  - The HTTP routes send no CORS headers: don't `fetch()` them.
+  - Reconnect with backoff. Treat the hub as offline after 2.5 s with no `state`.
+- **Never send on `/ws/dashboard`** (it takes operator commands), except `ping`.
+  - Never connect to `/ws/phone` or `/ws/robot`.
+  - Never load `/dashboard/`, `/twin/` or `/phone/` on the viewer machine. In a fresh browser the
+    dashboard's Virtual robot switch is on, and its twin would replace the real rover on `/ws/robot`.
+- **Scores:** `scores` are raw filter-bank CCA scores (weighted sum of squared canonical
+  correlations over 3 bands, weights 1.25/0.67/0.50).
+  - Theoretical range 0–2.42; in practice ~0.03–0.7, and all 0.0 before the first decode.
+  - They're updated every 0.25 s, so the 10 Hz `state` repeats values.
+  - The top score counts as `winner` only if it beats the runner-up by `params.margin`.
+- **Which is activating, weakest to strongest:**
+  1. `winner` (null = no clear target);
+  2. `dwell` (`count` of `needed` decodes in a row);
+  3. `command.direction`: what the robot is told right now (null = stopped, always null while disarmed).
+  - In latch mode, `latched` drives until a second clench, STOP or `latch.left_s` runs out.
+  - A change of `clench.count` marks a clench; `clench.last.result` says what it did.
+- **Video:** newest frame only.
+  - 640×360 from the rover camera (the bridge scales it to 640 wide), 640×480 from the simulators.
+  - The rate follows the robot. While the rover drives, the bridge repeats the last pre-drive frame
+    (`robot.telemetry.video_frozen`).
 
 ## Robot ⇄ hub (`/ws/robot`)
 
